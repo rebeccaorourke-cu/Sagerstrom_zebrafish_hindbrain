@@ -118,54 +118,9 @@ saveRDS(seurat, file = "RDSfiles/HB16hpf_neural.RDS")
 # 4. Find DE genes
 
 ``` r
-All.markers <- FindAllMarkers(seurat, only.pos = T)
+All.markers <- FindAllMarkers(seurat, only.pos = T, verbose = F)
+write.table(All.markers, file = "../results/DataS2_Fig2_HB16hpf_markers.txt", sep = "\t", quote = F, col.names = NA)
 ```
-
-    ## Calculating cluster Neuron
-
-    ## Calculating cluster DorsNT & NC
-
-    ## Calculating cluster CaudHB.1
-
-    ## Calculating cluster MB.1
-
-    ## Calculating cluster CaudHB.2
-
-    ## Calculating cluster r2
-
-    ## Calculating cluster r3
-
-    ## Calculating cluster CaudHB.3
-
-    ## Calculating cluster r6
-
-    ## Calculating cluster SC.1
-
-    ## Calculating cluster r5.1
-
-    ## Calculating cluster MHB.1
-
-    ## Calculating cluster r1
-
-    ## Calculating cluster r5.2
-
-    ## Calculating cluster r4
-
-    ## Calculating cluster Ciliated
-
-    ## Calculating cluster MB.2
-
-    ## Calculating cluster MHB.2
-
-    ## Calculating cluster FB
-
-    ## Calculating cluster SC.2
-
-    ## Calculating cluster SC.3
-
-    ## Calculating cluster MHB.3
-
-    ## Calculating cluster CaudHB.4
 
 ``` r
 top5.pval <- All.markers %>% group_by(cluster) %>% top_n(n=-5, wt = p_val) %>% top_n(n=5, wt = avg_log2FC)

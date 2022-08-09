@@ -83,7 +83,8 @@ saveRDS(seurat, file = "RDSfiles/HB10hpf_neural.RDS")
 
 # 4. Find DE genes
 ```{r markers, results=F}
-All.markers <- FindAllMarkers(seurat, only.pos = T)
+All.markers <- FindAllMarkers(seurat, only.pos = T, verbose = F)
+write.table(All.markers, file = "../results/DataS2_Fig3_HB10hpf_markers.txt", sep = "\t", quote = F, col.names = NA)
 ```
 
 ```{r top5}
