@@ -2,4 +2,7 @@
 .Rhistory
 .RData
 .Ruserdata
+<<<<<<< HEAD
 .workspace/notebooks/RDSfiles
+=======
+>>>>>>> aae96d1e245eadf10f1949e96ce59de700124c21

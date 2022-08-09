@@ -1,15 +1,22 @@
 ---
-title: "Preprocessing and QC of scRNAseq/ATACseq samples R Notebook"
-output:   
-  html_document:
-    toc: TRUE
-    toc_depth: 3
-    toc_float: TRUE
+title: "Preprocessing and QC"
+author: "Rebecca O'Rourke"
+date: "8/9/2022"
+output: html_document
 ---
 
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
 Read in 10X Genomics files from HB10hpf, HB13hpf, HB16hpf and HB13hpf_DEAB samples, create SeuratObjects, do QC analysis, filter out poor quality cells and process with Signac scRNA-seq/ATAC-seq pipeline.
 
 set mybin <- miniconda3/bin and mypath <- path to cellranger output files before running
+
+```{r}
+mybin <- "/Users/becky/opt/miniconda3/bin"
+mypath <- "~/Documents/Projects/Sagerstrom/scRNAseq_ATACseq_2021_02_09"
+```
+
 # 1. Libraries, annotation and palette
 ```{r libraries, results=F}
 suppressPackageStartupMessages({
@@ -271,7 +278,7 @@ HB13hpf
 
 ## 3.3 HB16hpf
 ```{r CreateHB16, results=F}
-inputdata.16 <- Read10X_h5(paste0(mypath,"/HB16hpf/filtered_feature_bc_matrix.h5"))
+inputdata.16 <- Read10X_h5(paste0(mypath,"/HB16hpf_analyses/HB16hpf/filtered_feature_bc_matrix.h5"))
 frag.file.16 <- paste0(mypath,"/HB16hpf_analyses/HB16hpf/atac_fragments.tsv.gz")
 HB16hpf <- SeuratFromMatrixh5(inputdata.16, annotation, frag.file.16)
 ```
@@ -282,7 +289,7 @@ HB16hpf
 
 ## 3.4 HB13hpf_DEAB
 ```{r createHB13_DEAB, results=F}
-inputdata.13deab <- Read10X_h5(paste0(mypath,"/HB13hpf_DEAB/filtered_feature_bc_matrix.h5"))
+inputdata.13deab <- Read10X_h5(paste0(mypath,"/HB13hpf_DEAB_analyses/HB13hpf_DEAB/filtered_feature_bc_matrix.h5"))
 frag.file.13deab <- paste0(mypath,"/HB13hpf_DEAB_analyses/HB13hpf_DEAB/atac_fragments.tsv.gz")
 HB13hpf_DEAB <- SeuratFromMatrixh5(inputdata.13deab, annotation, frag.file.13deab)
 ```

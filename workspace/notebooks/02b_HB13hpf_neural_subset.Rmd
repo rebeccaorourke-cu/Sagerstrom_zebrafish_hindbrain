@@ -1,0 +1,108 @@
+---
+title: "HB13hpf_neural_subset"
+author: "Rebecca O'Rourke"
+date: "8/9/2022"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# 1. libraries, palette and functions
+```{r libraries, results=F}
+suppressPackageStartupMessages({
+  library(Seurat)
+  library(org.Dr.eg.db)
+  library(BSgenome.Drerio.UCSC.danRer11)
+  library(Signac)
+  library(knitr)
+  library(kableExtra)
+  library(dplyr)
+  library(ggplot2)
+  library(ggsci)
+  library(limma)
+  library(JASPAR2020)
+  library(patchwork)
+  library(TFBSTools)
+  library(motifmatchr)
+  library(harmony)
+})
+options(future.globals.maxSize = 4000 * 1024^2)
+```
+
+```{r mypal}
+mypal <- pal_igv(palette = "default",alpha = 1)(50)
+```
+
+```{r GetUMAPandClusters, results=F, warnings=F,fig.width=15, fig.height=5}
+GetUMAPandClusters <- function(seurat){
+  # RNA analysis
+  DefaultAssay(seurat) <- "RNA"
+  seurat <- SCTransform(seurat, verbose = FALSE, return.only.var.genes = FALSE) 
+  seurat <- RunPCA(seurat) 
+  ElbowPlot(seurat,ndims = 50)
+  seurat <- RunUMAP(seurat, dims = 1:50, reduction.name = 'umap.rna', reduction.key = 'rnaUMAP_')
+  
+  # ATAC analysis
+  # We exclude the first dimension as this is typically correlated with sequencing depth
+  DefaultAssay(seurat) <- "peaks"
+  
+  seurat <- FindTopFeatures(seurat, min.cutoff = 5)
+  seurat <- RunTFIDF(seurat)
+  seurat <- RunSVD(seurat)
+  seurat <- RunUMAP(seurat, reduction = 'lsi', dims = 2:50, reduction.name = "umap.atac", reduction.key = "atacUMAP_")
+  
+  DefaultAssay(seurat) <- "SCT"
+  seurat <- FindMultiModalNeighbors(seurat, reduction.list = list("pca", "lsi"), dims.list = list(1:50, 2:50))
+  seurat <- RunUMAP(seurat, nn.name = "weighted.nn", reduction.name = "wnn.umap", reduction.key = "wnnUMAP_", assay = "RNA")
+  seurat <- FindClusters(seurat, graph.name = "wsnn", algorithm = 3, verbose = FALSE)
+  seurat <- FindClusters(seurat, graph.name = "wsnn", algorithm = 3, verbose = FALSE, resolution = 8.0)
+
+  p1 <- DimPlot(seurat, reduction = "umap.rna", label = TRUE, label.size = 5, repel = TRUE, group.by = "wsnn_res.0.8") + ggtitle("RNA") + scale_color_igv()
+  p2 <- DimPlot(seurat, reduction = "umap.atac", label = TRUE, label.size = 5, repel = TRUE, group.by = "wsnn_res.0.8") + ggtitle("ATAC") + scale_color_igv()
+  p3 <- DimPlot(seurat, reduction = "wnn.umap", label = TRUE, label.size = 5, repel = TRUE, group.by = "wsnn_res.0.8") + ggtitle("WNN") + scale_color_igv()
+  print(p1 + p2 + p3 & NoLegend() & theme(plot.title = element_text(hjust = 0.5)))
+  
+  return(seurat)
+}
+```
+
+# 2. Read data
+```{r readData}
+seurat <- readRDS("RDSfiles/HB13hpf.clustered.RDS")
+Idents(seurat) <- "wsnn_res.3"
+DimPlot(seurat, label = T, repel = T, reduction = "wnn.umap") + scale_color_igv()
+```
+
+# 3. Neural subset
+```{r subset}
+neural <- subset(seurat, idents = c("0","1","2","4","6","9","15","16","17","19","20","22","24","27","28"))
+DimPlot(neural, label = T, repel = T, reduction = "wnn.umap") + scale_color_igv()
+```
+
+# 4. Reprocess only neural cells
+Starting with only neural cells, rerun SCTransform, PCA, UMAP, SVD, Multimodal Neighbors and Clustering
+```{r reprocess, results = F, warnings = F, fig.height=5, fig.width=15}
+neural <- GetUMAPandClusters(neural)
+```
+
+```{r save}
+saveRDS(neural, file = "RDSfiles/HB13hpf_neural.RDS")
+```
+
+```{r plot1, fig.width=10, fig.height=10}
+p1 <- DimPlot(neural, group.by = "wsnn_res.0.8", label = T, reduction = "wnn.umap") + NoLegend() + scale_color_igv()
+p2 <- DimPlot(neural, group.by = "wsnn_res.8", label = T, reduction = "wnn.umap") + NoLegend() + scale_color_igv()
+p <- p1 + p2  
+p
+```
+
+```{r plot2, fig.height=10, fig.width=10}
+DimPlot(neural, group.by = "wsnn_res.8",split.by = "orig.ident", reduction = "wnn.umap", ncol = 2, label = T, repel = T, cols = mypal) + NoLegend()
+```
+
+# 5. sessionInfo
+```{r sessionInfo}
+sessionInfo()
+```

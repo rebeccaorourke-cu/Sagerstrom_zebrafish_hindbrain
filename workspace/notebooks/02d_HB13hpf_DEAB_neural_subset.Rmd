@@ -1,0 +1,157 @@
+---
+title: "HB13hpf_DEAB_neural_subset"
+author: "Rebecca O'Rourke"
+date: "8/9/2022"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# 1. libraries, palette and functions
+```{r libraries, results=F}
+suppressPackageStartupMessages({
+  library(Seurat)
+  library(org.Dr.eg.db)
+  library(BSgenome.Drerio.UCSC.danRer11)
+  library(Signac)
+  library(knitr)
+  library(kableExtra)
+  library(dplyr)
+  library(ggplot2)
+  library(ggsci)
+  library(limma)
+  library(JASPAR2020)
+  library(patchwork)
+  library(TFBSTools)
+  library(motifmatchr)
+  library(harmony)
+})
+options(future.globals.maxSize = 4000 * 1024^2)
+```
+
+```{r mypal}
+mypal <- pal_igv(palette = "default",alpha = 1)(50)
+```
+
+```{r GetUMAPandClusters, results=F, warnings=F,fig.width=15, fig.height=5}
+GetUMAPandClusters <- function(seurat){
+  # RNA analysis
+  DefaultAssay(seurat) <- "RNA"
+  seurat <- SCTransform(seurat, verbose = FALSE, return.only.var.genes = FALSE) 
+  seurat <- RunPCA(seurat) 
+  ElbowPlot(seurat,ndims = 50)
+  seurat <- RunUMAP(seurat, dims = 1:50, reduction.name = 'umap.rna', reduction.key = 'rnaUMAP_')
+  
+  # ATAC analysis
+  # We exclude the first dimension as this is typically correlated with sequencing depth
+  DefaultAssay(seurat) <- "peaks"
+  
+  seurat <- FindTopFeatures(seurat, min.cutoff = 5)
+  seurat <- RunTFIDF(seurat)
+  seurat <- RunSVD(seurat)
+  seurat <- RunUMAP(seurat, reduction = 'lsi', dims = 2:50, reduction.name = "umap.atac", reduction.key = "atacUMAP_")
+  
+  DefaultAssay(seurat) <- "SCT"
+  seurat <- FindMultiModalNeighbors(seurat, reduction.list = list("pca", "lsi"), dims.list = list(1:50, 2:50))
+  seurat <- RunUMAP(seurat, nn.name = "weighted.nn", reduction.name = "wnn.umap", reduction.key = "wnnUMAP_", assay = "RNA")
+  seurat <- FindClusters(seurat, graph.name = "wsnn", algorithm = 3, verbose = FALSE)
+  seurat <- FindClusters(seurat, graph.name = "wsnn", algorithm = 3, verbose = FALSE, resolution = 8.0)
+  
+  p1 <- DimPlot(seurat, reduction = "umap.rna", label = TRUE, label.size = 5, repel = TRUE, group.by = "wsnn_res.0.8") + ggtitle("RNA") + scale_color_igv()
+  p2 <- DimPlot(seurat, reduction = "umap.atac", label = TRUE, label.size = 5, repel = TRUE, group.by = "wsnn_res.0.8") + ggtitle("ATAC") + scale_color_igv()
+  p3 <- DimPlot(seurat, reduction = "wnn.umap", label = TRUE, label.size = 5, repel = TRUE, group.by = "wsnn_res.0.8") + ggtitle("WNN") + scale_color_igv()
+  print(p1 + p2 + p3 & NoLegend() & theme(plot.title = element_text(hjust = 0.5)))
+  
+  return(seurat)
+}
+```
+
+# 2. Read data
+```{r readData}
+HB13hpf.DEAB <- readRDS("RDSfiles/HB13hpf_DEAB.clustered.RDS")
+DimPlot(HB13hpf.DEAB, reduction = "wnn.umap", label = T, repel = T, group.by = "wsnn_res.3") + scale_color_igv()
+```
+
+# 3. Add cluster ID's
+```{r clusterIDs}
+Idents(HB13hpf.DEAB) <- "wsnn_res.3"
+HB13hpf.DEAB <- RenameIdents(HB13hpf.DEAB,
+                             "0" = "neural crest",
+                             "1" = "r1/r2/r4",
+                             "2" = "MHB.1",
+                             "3" = "MHB.2",
+                             "4" = "HB-like",
+                             "5" = "MHB.3",
+                             "6" = "Placode.1",
+                             "7" = "Endoderm.1",
+                             "8" = "Eye.1",
+                             "9" = "SC?",
+                             "10" = "Placode.2",
+                             "11" = "Kidney?",
+                             "12" = "FB/eye",
+                             "13" = "Muscle.1",
+                             "14" = "r3",
+                             "15" = "cilia/SC?",
+                             "16" = "Placode.3",
+                             "17" = "MHB.1",
+                             "18" = "CHB/SC",
+                             "19" = "somite ",
+                             "20" = "HiRibosomal",
+                             "21" = "Endoderm.2",
+                             "22" = "Muscle.2",
+                             "23" = "Eye.2",
+                             "24" = "heart",
+                             "25" = "Notochord",
+                             "26" = "Ciliated",
+                             "27" = "neurons",
+                             "28" = "Skeletal",
+                             "29" = "Blood",
+                             "30" = "Kidney?",
+                             "31" = "skin (epidermis)?")
+HB13hpf.DEAB$WholeClusters <- Idents(HB13hpf.DEAB)
+DimPlot(HB13hpf.DEAB, reduction = "wnn.umap", label = T, repel = T) + scale_color_igv()
+```
+
+# 4. Subset neural clusters
+
+the following are neural clusters:
+
+1, 2, 3, 4, 5, 8, 9, 12, 14, 15, 17, 18, 23, 26, 27
+
+```{r subset}
+Idents(HB13hpf.DEAB) <- "wsnn_res.3"
+neural <- subset(HB13hpf.DEAB, idents = c("1","2","3","4","5","8","9","12","14","15","17","18","23","26","27"))
+DimPlot(neural, label = T, repel = T, reduction = "wnn.umap") + scale_color_igv()
+```
+
+# 5. Reprocess only neural cells
+Starting with only neural cells, rerun SCTransform, PCA, UMAP, SVD, Multimodal Neighbors and Clustering
+```{r reprocess, results = F, warnings = F, fig.height=5, fig.width=15}
+neural <- GetUMAPandClusters(neural)
+```
+
+```{r save}
+saveRDS(neural, file = "RDSfiles/HB13hpf_DEAB_neural.RDS")
+```
+
+```{r plot1, fig.width=10, fig.height=10}
+p1 <- DimPlot(neural, group.by = "wsnn_res.0.8", label = T, reduction = "wnn.umap") + NoLegend() + scale_color_igv()
+p2 <- DimPlot(neural, group.by = "wsnn_res.8", label = T, reduction = "wnn.umap") + NoLegend() + scale_color_igv()
+p <- p1 + p2 
+p
+```
+
+```{r plot2}
+p1 <- DimPlot(neural, group.by = "wsnn_res.8", label = T, reduction = "wnn.umap") + NoLegend() + scale_color_igv()
+p2 <- DimPlot(neural, group.by = "WholeClusters", label = T, reduction = "wnn.umap") + NoLegend() + scale_color_igv()
+p1 + p2
+```
+
+
+# 6. sessionInfo
+```{r sessionInfo}
+sessionInfo()
+```
+
