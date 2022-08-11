@@ -1,0 +1,125 @@
+---
+title: "Cluster Naming and plots HB13hpf R Notebook"
+output: 
+  github_document
+---
+
+# 1. libraries
+```{r libaries, results=F}
+suppressPackageStartupMessages({
+  library(Seurat)
+  library(org.Dr.eg.db)
+  library(BSgenome.Drerio.UCSC.danRer11)
+  library(Signac)
+  library(knitr)
+  library(kableExtra)
+  library(dplyr)
+  library(ggplot2)
+  library(ggsci)
+  library(limma)
+  library(JASPAR2020)
+  library(patchwork)
+  library(TFBSTools)
+  library(motifmatchr)
+  library(harmony)
+})
+options(future.globals.maxSize = 4000 * 1024^2)
+```
+
+```{r mypal}
+mypal <- pal_igv(palette = "default",alpha = 1)(35) ## updated from 30 because HB13hpf has 31 clusters and this was causing DoHeatmap to hang
+```
+
+# 2. Read data
+```{r readData}
+seurat <- readRDS(file = "RDSfiles/HB13hpf.clustered.RDS")
+DefaultAssay(seurat) <- "SCT"
+Idents(seurat) <- "wsnn_res.3"
+DimPlot(seurat, reduction = "wnn.umap", label = T, repel = T) + scale_color_igv()
+```
+
+# 3. Rename Idents
+```{r RenameIdents, fig.height=5, fig.width=10}
+Idents(seurat) <- "wsnn_res.3"
+seurat <- RenameIdents(seurat,
+                       "0" = "r1 r2 & r4",
+                       "1" = "FB & MB",
+                       "2" = "MHB.1",
+                       "3" = "Placode.1",
+                       "4" = "SC",
+                       "5" = "NC.1",
+                       "6" = "CaudHB.1",
+                       "7" = "Muscle.1",
+                       "8" = "Heart",
+                       "9" = "MHB.2",
+                       "10" = "Muscle.2",
+                       "11" = "Skeletal",
+                       "12" = "Somite",
+                       "13" = "Endoderm",
+                       "14" = "Placode.2",
+                       "15" = "CaudHB.2",
+                       "16" = "r3",
+                       "17" = "r5",
+                       "18" = "Placode.3",
+                       "19" = "Neuron",
+                       "20" = "r6",
+                       "21" = "Blood",
+                       "22" = "Eye.1",
+                       "23" = "NC.2",
+                       "24" = "Eye.2",
+                       "25" = "HiRibosomal",
+                       "26" = "Placode.4",
+                       "27" = "FB & eye",
+                       "28" = "Ciliated",
+                       "29" = "Notochord",
+                       "30" = "Kidney")
+umapPlot <- DimPlot(seurat, reduction = "wnn.umap") + scale_color_igv()
+umapPlot
+ggsave(filename = "../results/FigureS3_HB13hpf_umapPlot.png", plot = umapPlot)
+```
+
+# 4. Find DE genes
+```{r markers, results=F}
+All.markers <- FindAllMarkers(seurat, only.pos = T, verbose = F)
+write.table(All.markers, file = "../results/FigureS3_HB13hpf_markers.txt", sep = "\t", quote = F, col.names = NA)
+```
+
+```{r top5}
+top5.pval <- All.markers %>% group_by(cluster) %>% top_n(n=-5, wt = p_val) %>% top_n(n=5, wt = avg_log2FC)
+top5.pval
+```
+
+# 5. Plots
+## 5.1 dotplot
+```{r dotplot, fig.width=25, fig.height=7}
+dotPlot <- DotPlot(seurat, features = unique(top5.pval$gene)) + RotatedAxis()
+dotPlot
+ggsave(filename = "../results/FigureS3_HB13hpf_dotPlot.png", plot = dotPlot)
+```
+
+## 5.2 heatmap
+```{r heatmap, fig.height=20, fig.width=10}
+heatmapPlot <- DoHeatmap(seurat, features = unique(top5.pval$gene), group.colors = mypal, size = 5, angle = 90) + guides(color = FALSE)
+heatmapPlot
+ggsave(filename = "../results/FigureS3_HB13hpf_heatmapPlot.png", plot = heatmapPlot)
+```
+
+## 5.3 combine umap, dotplot and heatmap
+```{r combined,fig.height=16, fig.width=20}
+combined <- (((umapPlot + 
+      theme(legend.text = element_text(size = 20))) |
+     (heatmapPlot +
+        theme(axis.text = element_blank()))) / 
+    (dotPlot + 
+       theme(axis.text.x = element_text(size = 10),
+             axis.text.y = element_text(size = 12),
+             legend.position = "bottom"))) +
+    plot_layout(heights = c(2,1))
+combined
+ggsave(filename = "../results/FigureS3_HB13hpf_combinedPlot.png", plot = combined)
+```
+
+
+```{r sessionInfo}
+sessionInfo()
+```

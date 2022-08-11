@@ -2,7 +2,7 @@
 title: "Preprocessing and QC"
 author: "Rebecca O'Rourke"
 date: "8/9/2022"
-output: html_document
+output: github_document
 ---
 
 ```{r setup, include=FALSE}
