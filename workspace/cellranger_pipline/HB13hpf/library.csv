@@ -1,0 +1,5 @@
+fastqs,sample,library_type
+data/GEX,HB13hpf_GEX,Gene Expression
+data/ATAC,HB13hpf_ATAC_1,Chromatin Accessibility
+data/ATAC,HB13hpf_ATAC_2,Chromatin Accessibility
+data/ATAC,HB13hpf_ATAC_3,Chromatin Accessibility

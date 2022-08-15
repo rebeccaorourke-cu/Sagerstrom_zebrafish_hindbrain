@@ -1,0 +1,6 @@
+fastqs,sample,library_type
+/data/GEX,Embryo10hpf_GEX,Gene Expression
+/data/ATAC,Embryo10hpf_ATAC_1,Chromatin Accessibility
+/data/ATAC,Embryo10hpf_ATAC_2,Chromatin Accessibility
+/data/ATAC,Embryo10hpf_ATAC_3,Chromatin Accessibility
+/data/ATAC,Embryo10hpf_ATAC_4,Chromatin Accessibility
