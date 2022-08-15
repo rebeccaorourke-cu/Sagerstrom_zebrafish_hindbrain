@@ -16,7 +16,9 @@ ATGGTGAGCAAGGGCGAGGAGCTGTTCACCGGGGTGGTGCCCATCCTGGTCGAGCTGGACGGCGACGTAAACGGCCACAA
 and end of gtf file:
 
  chrGFP	unknown	gene	1	717	.	+	.	gene_id "GFP"; gene_version "2"; gene_name "GFP"; gene_source "manual"; gene_biotype "protein_coding"; 
+ 
  chrGFP	unkonwn	transcript	1	717	.	+	.	gene_id "GFP"; gene_version "2"; transcript_id "GFP"; transcript_version "1"; gene_name "GFP"; gene_source "manual"; gene_biotype "protein_coding"; transcript_name "GFP"; transcript_source "manual"; transcript_biotype "protein_coding";
+ 
  chrGFP	unknown	exon	1	717	.	+	.	gene_id "GFP"; gene_version "2"; transcript_id "GFP"; gene_name "GFP"; gene_source "manual"; gene_biotype "protein_coding"; transcript_name "GFP"; transcript_biotype "protein_coding";
 
 #### 2.1.3 Correct chromosome naming
