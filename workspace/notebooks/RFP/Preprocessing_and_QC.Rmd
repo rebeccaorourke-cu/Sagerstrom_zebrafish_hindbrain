@@ -1,0 +1,488 @@
+---
+title: "Preprocessing and QC of scRNAseq/ATACseq samples R Notebook"
+output:   
+  html_notebook:
+    toc: TRUE
+    toc_depth: 3
+    toc_float: TRUE
+---
+```{css, echo = F}
+caption {
+      color: blue;
+      font-weight: bold;
+      font-size: 2.0em;
+    }
+```
+
+Will read in 10X Genomics files from Meis and RFP samples for QC analysis
+
+# 1. Libraries, annotation and palette
+```{r, results=F}
+library(Seurat)
+library(dplyr)
+library(org.Dr.eg.db)
+library(BSgenome.Drerio.UCSC.danRer11)
+library(Signac)
+library(ggplot2)
+library(ggsci)
+library(limma)
+library(AnnotationHub)
+library(reticulate)
+library(patchwork)
+use_python("/Users/becky/opt/miniconda3/bin/python")
+library(JASPAR2020)
+library(TFBSTools)
+library(motifmatchr)
+options(future.globals.maxSize = 4000 * 1024^2)
+```
+```{r}
+ah = AnnotationHub()
+GRCz11.v99.EnsDb = ah[["AH78759"]]  ## /beevol/home/orourke/genomes/cellranger_arc_genomes/zebrafishPlusGFP built on GRCz11.v99.gtf
+#GRCz11.v103.EnsDb <- ah[["AH89399"]]
+```
+
+```{r}
+mypal <- pal_igv(palette = "default",alpha = 1)(30)
+```
+
+# 2. Functions
+
+## 2.1 Create Seurat object
+```{r, results=F}
+SeuratFromMatrixh5 <- function(inputdata, annotation, frag){
+  # the 10x hdf5 file contains both data types
+  rna_counts <- inputdata$`Gene Expression`
+  atac_counts <- inputdata$Peaks
+  
+  seurat <- CreateSeuratObject(counts = rna_counts, assay = "RNA")
+  seurat[["percent.mt"]] <- PercentageFeatureSet(seurat, pattern = "^mt-")
+  
+  seurat[["ATAC"]] <- CreateChromatinAssay(
+    counts = atac_counts,
+    sep = c(":", "-"),
+    fragments = frag,
+    annotation = annotation)
+  
+  return(seurat)
+}
+```
+
+## 2.2 QC plots
+```{r, fig.height=5, fig.width=7  }
+GetQCplots <- function(seurat, mitoPattern){
+  seurat[["percent.mt"]] <- PercentageFeatureSet(seurat, pattern = mitoPattern)
+  v <- VlnPlot(seurat, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3)
+  f1 <- FeatureScatter(seurat, feature1 = "nCount_RNA", feature2 = "percent.mt")
+  f2 <- FeatureScatter(seurat, feature1 = "nFeature_RNA", feature2 = "percent.mt")
+  f3 <- FeatureScatter(seurat, feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
+  
+  qc1 <- ggplot(seurat@meta.data, aes(x=nCount_RNA, y=nFeature_RNA, color=percent.mt)) + geom_point(size=0.1) +
+    scale_color_gradient(low="blue",high="red") + theme_classic()
+
+  qc2 <- ggplot(seurat@meta.data, aes(x=nCount_RNA, y=percent.mt)) + geom_point(size=0.1) + scale_x_log10() +
+    geom_density2d()
+
+  qc3 <- ggplot(seurat@meta.data, aes(x=nCount_RNA, y=nFeature_RNA ,color=percent.mt)) + geom_point(size=0.1) +
+    scale_x_log10() + scale_y_log10() + geom_density2d() +
+    scale_color_gradient(low="gray",high="darkblue") + theme_classic()
+
+  print(v)
+  print(f1)
+  print(f2)
+  print(f3)
+  print(qc1)
+  print(qc2)
+  print(qc3)
+
+  return(seurat)
+}
+```
+```{r}
+GetATACplots <- function(seurat){
+  DefaultAssay(seurat) <- "ATAC"
+  
+  seurat <- NucleosomeSignal(seurat)
+  seurat <- TSSEnrichment(seurat)
+  
+  v1 <- VlnPlot(
+    object = seurat,
+    features = "nCount_ATAC",
+    pt.size = 0
+  ) + NoLegend()
+  v2 <- VlnPlot(
+    object = seurat,
+    features = "nCount_ATAC",
+    y.max = 100000,
+    pt.size = 0
+  ) + NoLegend()
+  v3 <- VlnPlot(
+    object = seurat,
+    features = "nCount_ATAC",
+    y.max = 5000,
+    pt.size = 0
+  ) + NoLegend()
+  
+  v4 <- VlnPlot(
+    object = seurat,
+    features = "TSS.enrichment",
+    pt.size = 0
+  ) + NoLegend()
+  v5 <- VlnPlot(
+    object = seurat,
+    features = "TSS.enrichment",
+    y.max = 10,
+    pt.size = 0
+  ) + NoLegend()
+  
+  v6 <- VlnPlot(
+    object = seurat,
+    features = "nucleosome_signal",
+    pt.size = 0
+  ) + NoLegend()
+  v7 <- VlnPlot(
+    object = seurat,
+    features = "nucleosome_signal",
+    y.max = 2,
+    pt.size = 0
+  ) + NoLegend()
+
+  print(v1 + v2 + v3 + plot_layout(ncol = 3))
+  print(v4 + v5 + plot_layout(ncol = 2))
+  print(v6 + v7 + plot_layout(ncol = 2))
+  
+  return(seurat)
+}
+```
+
+## 2.3 Call Peaks with macs2 and filter
+```{r}
+CreatePeaksWithFilter <- function(seurat, frag, blacklist, annotation){
+  peaks <- CallPeaks(frag, macs2.path = "/Users/becky/opt/miniconda3/bin/macs2")
+  len.ATAC <- length(seurat@assays$ATAC@ranges)
+  len.peaks <- length(peaks)
+  
+  peaks <- keepStandardChromosomes(peaks, pruning.mode = "coarse")
+  len.std <- length(peaks)
+  peaks <- subsetByOverlaps(x = peaks, ranges = blacklist, invert = TRUE)
+  len.bl <- length(peaks)
+  ChrEnds <- GRanges(seqnames = annotation@seqinfo@seqnames,
+                     ranges = IRanges(start = annotation@seqinfo@seqlengths - 300,
+                                      end = annotation@seqinfo@seqlengths))
+  ChrStarts <- GRanges(seqnames = annotation@seqinfo@seqnames,
+                       ranges = IRanges(start = rep(1,26), end = rep(300,26)))
+  RemoveChrEndsChrStarts <- c(ChrEnds,ChrStarts)
+  peaks <- subsetByOverlaps(x = peaks, ranges = RemoveChrEndsChrStarts, invert = TRUE)
+  len.rends <- length(peaks)
+  
+  cat("Number original ATAC-seq peaks: ",len.ATAC,"\n")
+  cat("Number macs2 called ATAC-seq peaks: ",len.peaks,"\n")
+  cat("Number macs2 ATAC-seq peaks with Standard Chromosomes: ",len.std,"\n")
+  cat("Number macs2 ATAC-seq peaks after blacklist filter: ",len.bl,"\n")
+  cat("Number macs2 ATAC-seq peaks after 300bp end filter: ",len.rends,"\n")
+  
+  macs2_counts <- FeatureMatrix(
+    fragments = Fragments(seurat),
+    features = peaks,
+    cells = colnames(seurat)
+  )
+  
+  seurat[["peaks"]] <- CreateChromatinAssay(
+    counts = macs2_counts,
+    fragments = frag,
+    annotation = annotation,
+    genome = 'GRCz11'
+  )
+  
+  DefaultAssay(seurat) <- "peaks"
+  
+  seurat <- NucleosomeSignal(seurat)
+  seurat <- TSSEnrichment(seurat)
+  
+  return(seurat)
+  
+}
+
+```
+
+## 2.4 UMAPS and clusters
+```{r, results=F, warnings=F,fig.width=15, fig.height=5}
+GetUMAPandClusters <- function(seurat){
+  # RNA analysis
+  DefaultAssay(seurat) <- "RNA"
+  seurat <- SCTransform(seurat, verbose = FALSE, return.only.var.genes = FALSE) 
+  seurat <- RunPCA(seurat) 
+  ElbowPlot(seurat,ndims = 50)
+  seurat <- RunUMAP(seurat, dims = 1:50, reduction.name = 'umap.rna', reduction.key = 'rnaUMAP_')
+  
+  # ATAC analysis
+  # We exclude the first dimension as this is typically correlated with sequencing depth
+  DefaultAssay(seurat) <- "peaks"
+  
+  seurat <- FindTopFeatures(seurat, min.cutoff = 5)
+  seurat <- RunTFIDF(seurat)
+  seurat <- RunSVD(seurat)
+  seurat <- RunUMAP(seurat, reduction = 'lsi', dims = 2:50, reduction.name = "umap.atac", reduction.key = "atacUMAP_")
+  
+  DefaultAssay(seurat) <- "SCT"
+  seurat <- FindMultiModalNeighbors(seurat, reduction.list = list("pca", "lsi"), dims.list = list(1:50, 2:50))
+  seurat <- RunUMAP(seurat, nn.name = "weighted.nn", reduction.name = "wnn.umap", reduction.key = "wnnUMAP_", assay = "RNA")
+  seurat <- FindClusters(seurat, graph.name = "wsnn", algorithm = 3, verbose = FALSE)
+  seurat <- FindClusters(seurat, graph.name = "wsnn", algorithm = 3, verbose = FALSE, resolution = 1.0)
+  seurat <- FindClusters(seurat, graph.name = "wsnn", algorithm = 3, verbose = FALSE, resolution = 1.5)
+  seurat <- FindClusters(seurat, graph.name = "wsnn", algorithm = 3, verbose = FALSE, resolution = 2.0)
+  seurat <- FindClusters(seurat, graph.name = "wsnn", algorithm = 3, verbose = FALSE, resolution = 2.5)
+  seurat <- FindClusters(seurat, graph.name = "wsnn", algorithm = 3, verbose = FALSE, resolution = 3.0)
+  seurat <- FindClusters(seurat, graph.name = "wsnn", algorithm = 3, verbose = FALSE, resolution = 3.5)
+  
+  p1 <- DimPlot(seurat, reduction = "umap.rna", label = TRUE, label.size = 5, repel = TRUE, group.by = "wsnn_res.0.8") + ggtitle("RNA") + scale_color_igv()
+  p2 <- DimPlot(seurat, reduction = "umap.atac", label = TRUE, label.size = 5, repel = TRUE, group.by = "wsnn_res.0.8") + ggtitle("ATAC") + scale_color_igv()
+  p3 <- DimPlot(seurat, reduction = "wnn.umap", label = TRUE, label.size = 5, repel = TRUE, group.by = "wsnn_res.0.8") + ggtitle("WNN") + scale_color_igv()
+  print(p1 + p2 + p3 & NoLegend() & theme(plot.title = element_text(hjust = 0.5)))
+  
+  return(seurat)
+}
+```
+
+# 3 Read in data
+Use same annotation for each sample
+```{r, results=FALSE, warning=FALSE}
+# get gene annotations for GRCz11
+annotation <- GetGRangesFromEnsDb(ensdb = GRCz11.v99.EnsDb, verbose = FALSE)
+seqlevelsStyle(annotation) <- "UCSC"
+genome(annotation) <- "GRCz11"
+```
+
+## 3.1 Meis
+```{r, results=F}
+inputdata.10 <- Read10X_h5("data/Meis/filtered_feature_bc_matrix.h5")
+frag.file.10 <- "data/Meis/atac_fragments.tsv.gz"
+Meis <- SeuratFromMatrixh5(inputdata.10, annotation, frag.file.10)
+```
+
+```{r}
+Meis
+```
+
+## 3.2 RFP
+```{r, results=F}
+inputdata.13 <- Read10X_h5("data/RFP/filtered_feature_bc_matrix.h5")
+frag.file.13 <- "data/RFP/atac_fragments.tsv.gz"
+RFP <- SeuratFromMatrixh5(inputdata.13, annotation, frag.file.13)
+```
+
+```{r}
+RFP
+```
+
+# 4 QC Plots
+
+## 4.1 RNA-seq QC plots
+
+### 4.1.1 Meis
+```{r}
+Meis <- GetQCplots(Meis, "^mt-")
+```
+
+### 4.1.2 RFP
+```{r}
+RFP <- GetQCplots(RFP, "^mt-")
+```
+
+## 4.2 ATAC-seq QC plots
+
+### 4.2.1 Meis
+```{r}
+Meis <- GetATACplots(Meis)
+```
+### 4.2.2 RFP
+```{r}
+RFP <- GetATACplots(RFP)
+```
+
+# 5 Filter samples
+
+## 5.1 Meis
+```{r}
+cells.orig <- table(Meis@meta.data$orig.ident)[[1]]
+Meis <- subset(x = Meis,
+  subset = nCount_ATAC < 100000 & nCount_ATAC > 500)
+cells.atac <- table(Meis@meta.data$orig.ident)[[1]]
+Meis <- subset(x = Meis,
+  subset = nCount_RNA < 4000 & nCount_RNA > 500)
+cells.rna <- table(Meis@meta.data$orig.ident)[[1]]
+Meis <- subset(x = Meis,
+  subset =percent.mt < 5)
+cells.mt <- table(Meis@meta.data$orig.ident)[[1]]
+Meis <- subset(x = Meis,
+  subset = nucleosome_signal < 2 )
+cells.nuc <- table(Meis@meta.data$orig.ident)[[1]]
+Meis <- subset(x = Meis,
+  subset = TSS.enrichment >1)
+cells.tss <- table(Meis@meta.data$orig.ident)[[1]]
+cat("Meis:","\n")
+cat("cells in original sample: ",cells.orig,"\n")
+cat("cells after ATAC < 10000 & ATAC > 1000: ",cells.atac,"\n")
+cat("cells after RNA < 20000 and RNA > 500: ",cells.rna,"\n")
+cat("cells after percent.mt < 5: ",cells.mt,"\n")
+cat("cells after nucleosome < 2: ",cells.nuc,"\n")
+cat("cells after TSS enrichment > 1",cells.tss,"\n")
+```
+## 5.2 RFP
+```{r}
+cells.orig <- table(RFP@meta.data$orig.ident)[[1]]
+RFP <- subset(x = RFP,
+  subset = nCount_ATAC < 100000 & nCount_ATAC > 500)
+cells.atac <- table(RFP@meta.data$orig.ident)[[1]]
+RFP <- subset(x = RFP,
+  subset = nCount_RNA < 4000 & nCount_RNA > 500)
+cells.rna <- table(RFP@meta.data$orig.ident)[[1]]
+RFP <- subset(x = RFP,
+  subset =percent.mt < 5)
+cells.mt <- table(RFP@meta.data$orig.ident)[[1]]
+RFP <- subset(x = RFP,
+  subset = nucleosome_signal < 2 )
+cells.nuc <- table(RFP@meta.data$orig.ident)[[1]]
+RFP <- subset(x = RFP,
+  subset = TSS.enrichment >1)
+cells.tss <- table(RFP@meta.data$orig.ident)[[1]]
+cat("RFP:","\n")
+cat("cells in original sample: ",cells.orig,"\n")
+cat("cells after ATAC < 10000 & ATAC > 1000: ",cells.atac,"\n")
+cat("cells after RNA < 20000 and RNA > 500: ",cells.rna,"\n")
+cat("cells after percent.mt < 5: ",cells.mt,"\n")
+cat("cells after nucleosome < 2: ",cells.nuc,"\n")
+cat("cells after TSS enrichment > 1",cells.tss,"\n")
+```
+
+# 6 Peak calling
+Per recommendation from Signac tutorial call ATAC peaks with macs2 and put in assay "peaks"
+
+#### GRCz11.blacklist
+Found GRCz10 blacklist in Yang, H., Luan, Y., Liu, T. et al. A map of cis-regulatory elements and 3D genome structures in zebrafish. Nature 588, 337–343 (2020). https://doi.org/10.1038/s41586-020-2962-9
+Supplementary table 19: Supplemental Table 19. ChIP-seq black list in the zebrafish genome.xlsx
+```{r}
+### code used to generate blacklist
+# library(readxl)
+# library(GenomicRanges)
+# library(plyranges)
+# GRCz10.blacklist <- read_excel("Supplemental_Table_19_ChIPseq_black_list_in_the_zebrafish_genome.xlsx", col_names = F)
+# names(GRCz10.blacklist) <- c("seqnames","start","end")
+# head(GRCz10.blacklist)
+# GRCz10.blacklist <- as_granges(GRCz10.blacklist)
+# head(GRCz10.blacklist)
+# chain <- import.chain("danRer10ToDanRer11.over.chain")
+# seqlevelsStyle(GRCz10.blacklist) = "UCSC"  # necessary
+# GRCz11.blacklist = liftOver(GRCz10.blacklist, chain)
+# class(GRCz11.blacklist)
+# GRCz11.blacklist = unlist(GRCz11.blacklist)
+# genome(GRCz11.blacklist) = "GRCz11"
+# GRCz11.blacklist
+# saveRDS(GRCz11.blacklist, file = "GRCz11.blacklist.granges.RDS")
+```
+
+```{r}
+GRCz11.blacklist <- readRDS(file = "~/Documents/Projects/R_General/GRCz11.blacklist.granges.RDS")
+```
+
+Call peaks with macs2 and filter with blacklist and filter out peaks in 300bp start and end of each chromosome which causes errors in Signac in downstream analyses
+
+## 6.1 Meis
+```{r}
+Meis <- CreatePeaksWithFilter(Meis, frag.file.10, GRCz11.blacklist, annotation)
+```
+
+## 6.2 RFP
+```{r}
+RFP <- CreatePeaksWithFilter(RFP, frag.file.13, GRCz11.blacklist, annotation)
+```
+
+# 7 UMAPs
+
+## 7.1 Meis
+```{r, results = F, fig.height=5, fig.width=15}
+Meis <- GetUMAPandClusters(Meis)
+```
+
+2,8,14,4,20,21,25,23,15,13,3,6,12,14,10
+
+## 7.2 RFP
+```{r, results = F, fig.height=5, fig.width=15}
+RFP <- GetUMAPandClusters(RFP)
+```
+
+# 8 Add Motifs
+
+#### JASPAR2020 motif matrix
+```{r}
+# Get a list of motif position frequency matrices from the JASPAR database
+pfm <- getMatrixSet(
+  x = JASPAR2020,
+  opts = list(collection="CORE", all_versions = FALSE)
+)
+```
+
+## 8.1 Meis
+```{r, results=F}
+DefaultAssay(Meis) <- "peaks"
+Meis <- RegionStats(Meis, genome = BSgenome.Drerio.UCSC.danRer11, assay = "peaks")
+
+Meis <- AddMotifs(
+  object = Meis,
+  genome = BSgenome.Drerio.UCSC.danRer11,
+  pfm = pfm
+)
+```
+## 8.2 RFP
+```{r, results=F}
+DefaultAssay(RFP) <- "peaks"
+RFP <- RegionStats(RFP, genome = BSgenome.Drerio.UCSC.danRer11, assay = "peaks")
+
+RFP <- AddMotifs(
+  object = RFP,
+  genome = BSgenome.Drerio.UCSC.danRer11,
+  pfm = pfm
+)
+```
+
+
+# 9 Save processed files
+```{r}
+saveRDS(Meis, file = "RDSfiles/Meis.clustered.RDS")
+saveRDS(RFP, file = "RDSfiles/RFP.clustered.RDS")
+```
+
+#10 Neural subset
+
+Based on cluster ID's and UMAP from /scRNAseq_ATACseq_Meis/First_analysis_no_MEISplasmid/Proc_Individual_Samples/RFP_Annotate_Clusters.nb.html:
+neural clusters for RFP are: 14, 2, 3, 9,15, 21, 12, 0, 6
+
+Did not annotate Meis clusters because had realized that Meis-injection had failed.  Based on UMAP structure, neural clusters for Meis are: 2,8,14,4,20,21,25,23,15,13,3,6,12,14,10
+
+# 10.1 Meis
+
+```{r}
+Idents(Meis) <- "wsnn_res.0.8"
+Meis.neural <- subset(Meis, idents = c("2","8","14","4","20","21","25","23","11","15","13","3","6","12","14","10"))
+DimPlot(Meis.neural, reduction = "wnn.umap")
+```
+```{r}
+saveRDS(Meis.neural, file = "RDSfiles/Meis.neural.subset.RDS")
+```
+
+
+# 10.2 RFP
+
+```{r}
+Idents(RFP) <- "wsnn_res.0.8"
+RFP.neural <- subset(RFP, idents = c("14","2","3","9","15","21","12","0","6"))
+DimPlot(RFP.neural, reduction = "wnn.umap")
+```
+```{r}
+saveRDS(RFP.neural, file = "RDSfiles/RFP.neural.subset.RDS")
+```
+
+
+```{r}
+sessionInfo()
+```
+

@@ -1,0 +1,164 @@
+---
+title: "Refmap RFP to HB13hpf R Notebook"
+output: html_notebook
+---
+
+```{r, results=F}
+suppressPackageStartupMessages({
+  library(Seurat)
+  library(org.Dr.eg.db)
+  library(BSgenome.Drerio.UCSC.danRer11)
+  library(Signac)
+  library(knitr)
+  library(kableExtra)
+  library(dplyr)
+  library(ggplot2)
+  library(ggsci)
+  library(limma)
+  library(JASPAR2020)
+  library(patchwork)
+  library(TFBSTools)
+  library(motifmatchr)
+  library(AnnotationHub)
+  library(harmony)
+})
+options(future.globals.maxSize = 4000 * 1024^2)
+```
+
+# 2. Read data
+
+```{r}
+RFP <- readRDS(file = "RDSfiles/RFP.neural.subset.RDS")
+```
+
+```{r}
+HB13hpf <- readRDS("file" = "~/Documents/Projects/Sagerstrom/scRNA-seq_ATAC-seq_reanalysis_2021_07_12/InitialExploration/Neural_subsets/RDSfiles/HB13hpf_neural.RDS")
+```
+
+```{r}
+DimPlot(HB13hpf, reduction = "wnn.umap", group.by = "Clusters") + scale_color_igv() + ggtitle("HB13hpf")
+```
+
+```{r}
+DimPlot(RFP, reduction = "wnn.umap", label = TRUE, repel = TRUE) + scale_color_igv() + NoLegend() + ggtitle("RFP")
+```
+Shouldn't include cluster 9.
+
+```{r}
+Idents(RFP) <- "wsnn_res.0.8"
+RFP <- subset(RFP, idents = c("9"), invert = TRUE)
+DimPlot(RFP, reduction = "wnn.umap", group.by = "wsnn_res.0.8", label = TRUE) + NoLegend() + scale_color_igv() + ggtitle("RFP neural subset")
+```
+
+
+# 3. Create Reference Map
+```{r}
+HB13hpf <- RunUMAP(HB13hpf, nn.name = "weighted.nn", reduction.name = "wnn.umap", 
+              reduction.key = "wnnUMAP_", return.model = TRUE, 
+              umap.method = 'umap-learn', metric = 'correlation') ## rerun of RunUMAP here to get model
+DimPlot(HB13hpf, group.by = "Clusters", reduction = "wnn.umap") + scale_color_igv()
+```
+## 3.1 Compute sPCS 
+```{r}
+HB13hpf <- RunSPCA(HB13hpf, assay = 'SCT', graph = 'wsnn')
+```
+
+```{r}
+RFP
+toremove <- colnames(RFP)[colnames(RFP) %in% colnames(HB13hpf)]
+toremove
+RFP <- RFP[,!colnames(RFP) %in% toremove]
+RFP
+HB13hpf <- HB13hpf[,!colnames(HB13hpf) %in% toremove]
+HB13hpf
+```
+
+
+## 3.2 Mapping
+```{r}
+DefaultAssay(RFP) <- "SCT"
+DefaultAssay(HB13hpf) <- "SCT"
+anchors <- FindTransferAnchors(
+  reference = HB13hpf,
+  query = RFP,
+  k.filter = NA,
+  #recompute.residuals = FALSE,
+  reference.reduction = "spca",
+  normalization.method = "SCT",
+  dims = 1:50
+  )
+```
+
+```{r}
+RFP <- MapQuery(
+  anchorset = anchors,
+  query = RFP,
+  reference = HB13hpf,
+  refdata = list(
+    Clusters = "Clusters"
+  ),
+  reference.reduction = "spca", 
+  reduction.model = "wnn.umap"
+)
+```
+```{r, fig.width=10, fig.height=3}
+p1 <- DimPlot(RFP, reduction = "ref.umap", group.by = "predicted.Clusters") + scale_color_igv()
+p2 <- DimPlot(RFP, reduction = "ref.umap", group.by = "wsnn_res.0.8", label = TRUE) + scale_color_igv() + NoLegend()
+p1 + p2
+```
+
+
+```{r}
+anchors <- FindTransferAnchors(
+  reference = HB13hpf,
+  query = HB13hpf,
+  k.filter = NA,
+  reference.reduction = "spca",
+  normalization.method = "SCT",
+  dims = 1:50
+  )
+```
+
+```{r}
+HB13hpf <- MapQuery(
+  anchorset = anchors,
+  query = HB13hpf,
+  reference = HB13hpf,
+  refdata = list(
+    Clusters = "Clusters"
+  ),
+  reference.reduction = "spca", 
+  reduction.model = "wnn.umap"
+)
+```
+
+```{r, fig.width=10, fig.height=3}
+p1 <- DimPlot(HB13hpf, reduction = "ref.umap", group.by = "predicted.Clusters") + scale_color_igv()
+p2 <- DimPlot(HB13hpf, reduction = "ref.umap", group.by = "Clusters", label = TRUE) + scale_color_igv() + NoLegend()
+p1 + p2
+```
+
+## 3.3 merge WT and DEAB
+
+```{r}
+HB13hpf$orig.ident <- "HB13hpf"
+RFP$orig.ident <- "RFP"
+HB13.RFP <- merge(HB13hpf, RFP, merge.dr = "ref.umap")
+```
+
+```{r}
+DimPlot(HB13.RFP, reduction = "ref.umap", group.by =  "predicted.Clusters") + scale_color_igv()
+```
+
+```{r}
+DimPlot(HB13.RFP, reduction = "ref.umap", group.by =  "predicted.Clusters", split.by = "orig.ident") + scale_color_igv()
+```
+
+```{r}
+saveRDS(HB13.RFP, file = "RDSfiles/HB13hpfPlusRFP.neural.refMap.int.RDS")
+```
+
+```{r}
+sessionInfo()
+```
+
