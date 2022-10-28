@@ -1,0 +1,197 @@
+---
+title: "Figure 6 R Notebook"
+author: "Rebecca O'Rourke"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# 1 Libraries
+```{r, results=F}
+suppressPackageStartupMessages({
+  library(Seurat)
+  library(org.Dr.eg.db)
+  library(BSgenome.Drerio.UCSC.danRer11)
+  library(Signac)
+  library(knitr)
+  library(kableExtra)
+  library(dplyr)
+  library(ggplot2)
+  library(ggsci)
+  library(limma)
+  library(JASPAR2020)
+  library(patchwork)
+  library(TFBSTools)
+  library(motifmatchr)
+  library(AnnotationHub)
+  library(harmony)
+})
+options(future.globals.maxSize = 4000 * 1024^2)
+```
+
+```{r mypal}
+mypal <- pal_igv(palette = "default",alpha = 1)(35)
+```
+
+# 2. Read data
+```{r}
+seurat <- readRDS(file = "RDSfiles/int.neural.3WT.subset.RDS")
+DefaultAssay(seurat) <- "SCT"
+Idents(seurat) <- "intClusters"
+DimPlot(seurat, reduction = "wnn.umap", label = T, repel = T) + scale_color_igv()
+```
+
+```{r, fig.width=10, fig.height=7}
+Idents(seurat) <- "intClusters"
+levels(seurat) <- c("MB.1","MB.2","MB.3","MHB.1","MHB.2","MHB.3","MHB.4","MHB.5","MHB.6","Neurog","r1","r2","r1&r2.1","r1&r2.2","r3.1",
+                    "r4.1","r4.2","r5.1","r5.2","r6.1","r6.2","HB","CaudHB.1","CaudHB.2","CaudHB.3","CaudHB.4","SC.1","SC.2","SC.3","SC.4",
+                    "NC.1","NC.2","Neuron.1","Neuron.2","Ciliated","Mitochondrial")
+seurat$intClusters <- Idents(seurat)
+umapPlot <- DimPlot(seurat, reduction = "wnn.umap", pt.size = 3) + scale_color_igv() + theme(legend.text = element_text(size = 16))
+umapPlot
+```
+
+```{r, fig.width=5, fig.height=7}
+seurat$highlight <- as.character(seurat$Clusters)
+seurat$highlight[seurat$highlight == "r3" & seurat$orig.ident == "HB13hpf"] <- "HB13hpf r3"
+seurat$highlight[seurat$highlight == "r3" & seurat$orig.ident == "HB16hpf"] <- "HB16hpf r3"
+seurat$highlight <- as.factor(seurat$highlight)
+Idents(seurat) <- "highlight"
+HB1cells <- WhichCells(seurat, idents = "HB.1")
+HB2cells <- WhichCells(seurat, idents = "HB.2")
+HB3cells <- WhichCells(seurat, idents = "HB.3")
+HB13r3cells <- WhichCells(seurat, idents = "HB13hpf r3")
+HB16r3cells <- WhichCells(seurat, idents = "HB16hpf r3")
+gglayer_theme <- list(
+  theme(title = element_text(size = 10), axis.text = element_text(size = 10), axis.title = element_blank()),
+  NoLegend()
+)
+p1 <- DimPlot(seurat, cells.highlight = HB13r3cells, reduction = "wnn.umap", pt.size = 0.5, sizes.highlight = 0.5) + 
+  ggtitle("HB13hpf r3 cells") + gglayer_theme
+p2 <- DimPlot(seurat, cells.highlight = HB16r3cells, reduction = "wnn.umap", pt.size = 0.5, sizes.highlight = 0.5) + 
+  ggtitle("HB16hpf r3 cells") + gglayer_theme
+p3 <- DimPlot(seurat, cells.highlight = HB1cells, reduction = "wnn.umap", pt.size = 0.5, sizes.highlight = 0.5) + 
+  ggtitle("HB.1 cells") + gglayer_theme
+p4 <- DimPlot(seurat, cells.highlight = HB2cells, reduction = "wnn.umap", pt.size = 0.5, sizes.highlight = 0.5) + 
+  ggtitle("HB.2 cells") + gglayer_theme
+p5 <- DimPlot(seurat, cells.highlight = HB3cells, reduction = "wnn.umap", pt.size = 0.5, sizes.highlight = 0.5) + 
+  ggtitle("HB.3 cells") + gglayer_theme
+p6 <- DimPlot(seurat, group.by = "intClusters", reduction = "wnn.umap", pt.size = 0.5, sizes.highlight = 0.5) + 
+  ggtitle("Clusters") + gglayer_theme + scale_color_igv()
+highlight_panel <- (p1 + p2) / (p3 + p4) / (p5 + p6) 
+highlight_panel
+```
+
+```{r}
+Idents(seurat) <- "intClusters"
+cellcounts <- as.data.frame(table(seurat$intClusters, seurat$orig.ident)) %>%
+  #dplyr::filter(Var1 %in% c("r3.1","r5.1","r5.2"))
+  tidyr::pivot_wider(names_from = Var2, values_from = Freq) %>%
+  rename(Cluster = Var1)
+cellcounts
+write.table(cellcounts, file = "../results/DataS6_intCluster_cellcounts.txt", sep = "\t", quote = FALSE, col.names = NA)
+```
+
+```{r}
+genes1 <- FeaturePlot(seurat, features = c("zic2b","ntn1a"), reduction = "wnn.umap", max.cutoff = 2, ncol = 1)
+genes1
+```
+# Build Cluster Tree
+
+### Note to rerunning UMAP
+
+The subset has no @graphs due to the nature of removing some of the cells and how the graphs data is stored. To get the wsnn in @graphs again will have to rerun FindMultiModalNeighbors and RunUMAP. However keeping all the same cluster identities for all cells, so which cells are in which clusters will not change just their position on the UMAP.
+
+Not saving this seurat object so UMAP of int3WT.neural.subset will remain the same as it has been.
+
+```{r}
+seurat <- FindMultiModalNeighbors(seurat, reduction.list = list("pca", "harmony"), dims.list = list(1:50, 2:50))
+seurat <- RunUMAP(seurat, nn.name = "weighted.nn", reduction.name = "wnn.umap", reduction.key = "wnnUMAP_", assay = "RNA")
+DimPlot(seurat, reduction = "wnn.umap") + scale_color_igv()
+```
+
+```{r}
+seurat <- BuildClusterTree(seurat, graph = "wsnn")
+```
+
+```{r, fig.width=5, fig.height=3}
+PlotClusterTree(seurat,direction = "rightwards")
+```
+
+```{r, fig.height=7, fig.width=10}
+data.tree <- Tool(object = seurat, slot = "BuildClusterTree")
+pdf(file = "../results/Fig6_int3WT_clustertree_unrooted_vrs1.pdf")
+ape::plot.phylo(x = data.tree,  use.edge.length = FALSE, cex = 0.5, type = "u", 
+                      label.offset = 0.1, lab4ut = "axial")
+dev.off()
+```
+
+```{r, fig.height=7, fig.width=10}
+pdf(file = "../results/Fig6_int3WT_clustertree_unrooted_vrs2.pdf")
+ape::plot.phylo(x = data.tree,  use.edge.length = FALSE, cex = 0.5, type = "u")
+dev.off()
+```
+
+# Bar plots
+
+Since the bar plots involve various subsets of the dataset, to prevent them from being mixed with each other, they will each be generated in separate R scripts and the resulting plots read into this script for the final figure.
+
+```{r}
+r2r3gene_barplots <- readRDS(file = "../results/r2_r3_gene_barplots.RDS")
+r2r3gene_barplots
+```
+```{r}
+vgll3_egr2b_barplot <- readRDS(file = "../results/vgll3_egr2b_barplot.RDS")
+vgll3_egr2b_barplot
+```
+```{r}
+vgll3_nab1b_barplot <- readRDS(file = "../results/vgll3_nab1b_barplot.RDS")
+vgll3_nab1b_barplot
+```
+
+```{r}
+vgll3_egr2b_nab1b_barplot <- readRDS(file = "../results/vgll3_egr2b_nab1b_barplot.RDS")
+vgll3_egr2b_nab1b_barplot
+```
+
+
+```{r, fig.width=14, fig.height=21}
+combined <- (((umapPlot + 
+                 (genes1 + plot_layout(guides = "collect"))
+               ) + plot_layout(widths = c(3,1))
+              ) / 
+               plot_spacer() / 
+               (plot_spacer() + 
+                  highlight_panel + 
+                  plot_spacer() + 
+                  r2r3gene_barplots + 
+                  plot_layout(widths = c(1.5,1,0.1,1))
+                ) /
+               plot_spacer() /
+               ((plot_spacer() +
+                   (vgll3_egr2b_barplot / 
+                   vgll3_nab1b_barplot / 
+                   ((vgll3_egr2b_nab1b_barplot + plot_spacer()) + 
+                      plot_layout(widths = c(1,2.5))
+                    )
+                 ) +
+                   plot_spacer()
+                 ) +
+                  plot_layout(widths = c(0.05,1,1.5))
+                )
+             ) +
+  plot_layout(heights = c(1.2,0.1,1.5,0.1,2))
+combined
+ggsave(filename = "../results/Fig6_integrated_combinedPlot.png", plot = combined)
+```
+
+
+
+
+```{r}
+sessionInfo()
+```
+
+

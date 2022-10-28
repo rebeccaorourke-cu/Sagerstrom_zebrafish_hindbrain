@@ -1,0 +1,224 @@
+---
+title: "HB16hpf r1, r2, r3 vgll3 & egr2b expression R Notebook"
+author: "Rebecca O'Rourke"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# 1 libraries
+```{r, results=F}
+suppressPackageStartupMessages({
+  library(Seurat)
+  library(Signac)
+  library(knitr)
+  library(kableExtra)
+  library(dplyr)
+  library(ggplot2)
+  library(ggalluvial)
+  library(ggsci)
+  library(tidyr)
+  library(tidyverse)
+  library(patchwork)
+  library(dittoSeq)
+  library(ComplexHeatmap)
+  library(JASPAR2020)
+  library(TFBSTools)
+  library(motifmatchr)
+  library(org.Dr.eg.db)
+  library(BSgenome.Drerio.UCSC.danRer11)
+})
+options(future.globals.maxSize = 4000 * 1024^2)
+```
+
+# 2 read data
+
+```{r}
+HB10hpf <- readRDS(file = "RDSfiles/HB10hpf_neural.RDS")
+HB13hpf <- readRDS(file = "RDSfiles/HB13hpf_neural.RDS")
+HB16hpf <- readRDS(file = "RDSfiles/HB16hpf_neural.RDS")
+```
+
+# 3. Expression of vgll3 and egr2b by cell in r1, r2 or r3
+
+## 3.1 HB.1
+```{r, echo=FALSE}
+HB.1cells <- subset(HB10hpf, idents = "HB.1", features = c("vgll3","egr2b"))
+df.HB1 <- as.data.frame(t(GetAssayData(HB.1cells, slot = "data", assay = "SCT")))
+
+HB1.vgll3 <- sum(df.HB1$vgll3 > 0 & df.HB1$egr2b == 0) 
+HB1.egr2b <- sum(df.HB1$vgll3 == 0 & df.HB1$egr2b > 0) 
+HB1.vgll3.egr2b <- sum(df.HB1$vgll3 > 0 & df.HB1$egr2b > 0) 
+HB1.none <- sum(df.HB1$vgll3 == 0 & df.HB1$egr2b == 0)
+HB1.cellcount <- nrow(df.HB1)
+
+# create a dataset
+rhombomere <- c("HB1","HB1","HB1","HB1")
+#condition <- c("+vgll3/-egr2b","-vgll3/+egr2b","+vgll3/+egr2b","-vgll3/-egr2b")
+vgll3.egr2b <- c("+/-","-/+","+/+","-/-")
+count <- c(HB1.vgll3,HB1.egr2b,HB1.vgll3.egr2b,HB1.none)
+#data4 <- data.frame(rhombomere,condition,count)
+data4 <- data.frame(rhombomere,vgll3.egr2b,count)
+data4
+```
+
+## 3.1 r1
+### 3.1.2 HB13hpf
+```{r, echo=FALSE}
+r1cells.13 <- subset(HB13hpf, idents = "r1", features = c("vgll3","egr2b"))
+df.r1.13 <- as.data.frame(t(GetAssayData(r1cells.13, slot = "data", assay = "SCT")))
+
+r1.vgll3.13 <- sum(df.r1.13$vgll3 > 0 & df.r1.13$egr2b == 0) 
+r1.egr2b.13 <- sum(df.r1.13$vgll3 == 0 & df.r1.13$egr2b > 0) 
+r1.vgll3.egr2b.13 <- sum(df.r1.13$vgll3 > 0 & df.r1.13$egr2b > 0) 
+r1.none.13 <- sum(df.r1.13$vgll3 == 0 & df.r1.13$egr2b == 0)
+r1.cellcount.13 <- nrow(df.r1.13)
+```
+
+### 3.1.2 HB16hpf
+```{r}
+r1cells.16 <- subset(HB16hpf, idents = "r1", features = c("vgll3","egr2b"))
+df.r1.16 <- as.data.frame(t(GetAssayData(r1cells.16, slot = "data", assay = "SCT")))
+
+r1.vgll3.16 <- sum(df.r1.16$vgll3 > 0 & df.r1.16$egr2b == 0) 
+r1.egr2b.16 <- sum(df.r1.16$vgll3 == 0 & df.r1.16$egr2b > 0) 
+r1.vgll3.egr2b.16 <- sum(df.r1.16$vgll3 > 0 & df.r1.16$egr2b > 0) 
+r1.none.16 <- sum(df.r1.16$vgll3 == 0 & df.r1.16$egr2b == 0)
+r1.cellcount.16 <- nrow(df.r1.16)
+```
+
+### 3.1.3 r1 cellcount df
+```{r}
+# create a dataset
+rhombomere <- c("HB13hpf","HB13hpf","HB13hpf","HB13hpf",
+                "HB16hpf","HB16hpf","HB16hpf","HB16hpf")
+# condition <- c("+vgll3/-egr2b","-vgll3/+egr2b","+vgll3/+egr2b","-vgll3/-egr2b",
+#                "+vgll3/-egr2b","-vgll3/+egr2b","+vgll3/+egr2b","-vgll3/-egr2b")
+vgll3.egr2b <- c("+/-","-/+","+/+","-/-",
+               "+/-","-/+","+/+","-/-")
+count <- c(r1.vgll3.13,r1.egr2b.13,r1.vgll3.egr2b.13,r1.none.13,
+           r1.vgll3.16,r1.egr2b.16,r1.vgll3.egr2b.16,r1.none.16)
+#data1 <- data.frame(rhombomere,condition,count)
+data1 <- data.frame(rhombomere,vgll3.egr2b,count)
+data1
+```
+
+## 3.2 r2
+### 3.2.1 HB13hpf
+```{r, echo=FALSE}
+r2cells.13 <- subset(HB13hpf, idents = "r2", features = c("vgll3","egr2b"))
+df.r2.13 <- as.data.frame(t(GetAssayData(r2cells.13, slot = "data", assay = "SCT")))
+
+r2.vgll3.13 <- sum(df.r2.13$vgll3 > 0 & df.r2.13$egr2b == 0) 
+r2.egr2b.13 <- sum(df.r2.13$vgll3 == 0 & df.r2.13$egr2b > 0) 
+r2.vgll3.egr2b.13 <- sum(df.r2.13$vgll3 > 0 & df.r2.13$egr2b > 0) 
+r2.none.13 <- sum(df.r2.13$vgll3 == 0 & df.r2.13$egr2b == 0)
+r2.cellcount.13 <- nrow(df.r2.13)
+```
+
+### 3.2.2. HB16hpf
+```{r}
+r2cells.16 <- subset(HB16hpf, idents = "r2", features = c("vgll3","egr2b"))
+df.r2.16 <- as.data.frame(t(GetAssayData(r2cells.16, slot = "data", assay = "SCT")))
+
+r2.vgll3.16 <- sum(df.r2.16$vgll3 > 0 & df.r2.16$egr2b == 0) 
+r2.egr2b.16 <- sum(df.r2.16$vgll3 == 0 & df.r2.16$egr2b > 0) 
+r2.vgll3.egr2b.16 <- sum(df.r2.16$vgll3 > 0 & df.r2.16$egr2b > 0) 
+r2.none.16 <- sum(df.r2.16$vgll3 == 0 & df.r2.16$egr2b == 0)
+r2.cellcount.16 <- nrow(df.r2.16)
+```
+
+### 3.2.3 r2 cellcount df
+```{r}
+# create a dataset
+rhombomere <- c("HB13hpf","HB13hpf","HB13hpf","HB13hpf",
+                "HB16hpf","HB16hpf","HB16hpf","HB16hpf")
+# condition <- c("+vgll3/-egr2b","-vgll3/+egr2b","+vgll3/+egr2b","-vgll3/-egr2b",
+#                "+vgll3/-egr2b","-vgll3/+egr2b","+vgll3/+egr2b","-vgll3/-egr2b")
+vgll3.egr2b <- c("+/-","-/+","+/+","-/-",
+               "+/-","-/+","+/+","-/-")
+count <- c(r2.vgll3.13,r2.egr2b.13,r2.vgll3.egr2b.13,r2.none.13,
+           r2.vgll3.16,r2.egr2b.16,r2.vgll3.egr2b.16,r2.none.16)
+#data2 <- data.frame(rhombomere,condition,count)
+data2 <- data.frame(rhombomere,vgll3.egr2b,count)
+data2
+```
+
+
+## 3.3 r3
+### 3.3.1 HB13hpf
+```{r, echo=FALSE}
+r3cells.13 <- subset(HB13hpf, idents = "r3", features = c("vgll3","egr2b"))
+df.r3.13 <- as.data.frame(t(GetAssayData(r3cells.13, slot = "data", assay = "SCT")))
+
+r3.vgll3.13 <- sum(df.r3.13$vgll3 > 0 & df.r3.13$egr2b == 0) 
+r3.egr2b.13 <- sum(df.r3.13$vgll3 == 0 & df.r3.13$egr2b > 0) 
+r3.vgll3.egr2b.13 <- sum(df.r3.13$vgll3 > 0 & df.r3.13$egr2b > 0) 
+r3.none.13 <- sum(df.r3.13$vgll3 == 0 & df.r3.13$egr2b == 0)
+r3.cellcount.13 <- nrow(df.r3.13)
+```
+
+## 3.3.2 HB16hpf
+```{r}
+r3cells.16 <- subset(HB16hpf, idents = "r3", features = c("vgll3","egr2b"))
+df.r3.16 <- as.data.frame(t(GetAssayData(r3cells.16, slot = "data", assay = "SCT")))
+
+r3.vgll3.16 <- sum(df.r3.16$vgll3 > 0 & df.r3.16$egr2b == 0) 
+r3.egr2b.16 <- sum(df.r3.16$vgll3 == 0 & df.r3.16$egr2b > 0) 
+r3.vgll3.egr2b.16 <- sum(df.r3.16$vgll3 > 0 & df.r3.16$egr2b > 0) 
+r3.none.16 <- sum(df.r3.16$vgll3 == 0 & df.r3.16$egr2b == 0)
+r3.cellcount.16 <- nrow(df.r3.16)
+```
+
+### 3.3.3 r3 cellcount df
+```{r}
+# create a dataset
+rhombomere <- c("HB13hpf","HB13hpf","HB13hpf","HB13hpf",
+                "HB16hpf","HB16hpf","HB16hpf","HB16hpf")
+# condition <- c("+vgll3/-egr2b","-vgll3/+egr2b","+vgll3/+egr2b","-vgll3/-egr2b",
+#                "+vgll3/-egr2b","-vgll3/+egr2b","+vgll3/+egr2b","-vgll3/-egr2b")
+vgll3.egr2b <- c("+/-","-/+","+/+","-/-",
+               "+/-","-/+","+/+","-/-")
+count <- c(r3.vgll3.13,r3.egr2b.13,r3.vgll3.egr2b.13,r3.none.13,
+           r3.vgll3.16,r3.egr2b.16,r3.vgll3.egr2b.16,r3.none.16)
+#data3 <- data.frame(rhombomere,condition,count)
+data3 <- data.frame(rhombomere,vgll3.egr2b,count)
+data3
+```
+# 4 barplot cellcount expressing vgll3 or egr2b
+
+```{r, fig.width=7, fig.height=3}
+p5 <- ggplot(data4, aes(fill=vgll3.egr2b, y=count, x=rhombomere)) + 
+  geom_bar(stat="identity") + ylim(0,60) +
+  geom_text(data = subset(data4, count !=0),aes(label = count), position = position_stack(vjust = 0.5)) +
+  scale_fill_manual(values = c("grey","red","yellow","orange","blue","purple","green","black")) +
+  theme_classic() + theme(axis.title.x = element_blank(), legend.position = "none")
+p6 <- ggplot(data1, aes(fill=vgll3.egr2b, y=count, x=rhombomere)) + 
+  geom_bar(stat="identity") + ylim(0,60) +xlab("r1") +
+  geom_text(data = subset(data1, count !=0),aes(label = count), position = position_stack(vjust = 0.5)) +
+  scale_fill_manual(values = c("grey","red","yellow","orange","blue","purple","green","black")) +
+  theme_classic() + theme(axis.title.y = element_blank(), legend.position = "none")
+p7 <- ggplot(data2, aes(fill=vgll3.egr2b, y=count, x=rhombomere)) + 
+  geom_bar(stat="identity") + ylim(0,60) + xlab("r2") +
+  geom_text(data = subset(data2, count !=0),aes(label = count), position = position_stack(vjust = 0.5)) +
+  scale_fill_manual(values = c("grey","red","yellow","orange","blue","purple","green","black")) +
+  theme_classic() + theme(axis.title.y = element_blank(), legend.position = "none")
+p8 <- ggplot(data3, aes(fill=vgll3.egr2b, y=count, x=rhombomere)) + 
+  geom_bar(stat="identity") + ylim(0,60) + xlab("r3") +
+  geom_text(data = subset(data3, count !=0),aes(label = count), position = position_stack(vjust = 0.5)) +
+  scale_fill_manual(values = c("grey","red","yellow","orange","blue","purple","green","black")) +
+  theme_classic() + theme(axis.title.y = element_blank())
+vgll3_egr2b_barplot <- wrap_plots(list(p5,p6,p7,p8), nrow = 1, guides = "collect") + guides(fill=guide_legend(title="vgll3/egr2b"))
+vgll3_egr2b_barplot
+```
+```{r}
+saveRDS(vgll3_egr2b_barplot, file = "../results/vgll3_egr2b_barplot.RDS")
+```
+
+
+```{r}
+sessionInfo()
+```
+
