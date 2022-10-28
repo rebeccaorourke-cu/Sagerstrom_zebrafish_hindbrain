@@ -44,25 +44,25 @@ DimPlot(seurat, reduction = "wnn.umap", label = T, repel = T) + scale_color_igv(
 ```
 
 # 3. Rename Idents
-```{r RenameIdents, fig.height=5, fig.width=10}
+```{r RenameIdents, fig.width=7, fig.height=7}
 Idents(seurat) <- "wsnn_res.6"
 seurat <- RenameIdents(seurat,
                        "0" = "HB.1",
                        "1" = "SC.1",
-                       "2" = "MB.1",
-                       "3" = "FB.1",
+                       "2" = "MB",
+                       "3" = "FB",
                        "4" = "NC.1",
                        "5" = "FB & eye.1",
                        "6" = "HB.2",
                        "7" = "MHB.1",
                        "8" = "SC.2",
-                       "9" = "CaudHB.1",
+                       "9" = "CHB.1",
                        "10" = "MHB.2",
-                       "11" = "CaudHB.2",
+                       "11" = "CHB.2",
                        "12" = "FB &  eye.2",
                        "13" = "MHB.3",
                        "14" = "FB & eye.3",
-                       "15" = "CaudHB.3",
+                       "15" = "CHB.3",
                        "16" = "FB & eye.4",
                        "17" = "FB & eye.5",
                        "18" = "FB & eye.6",
@@ -71,10 +71,13 @@ seurat <- RenameIdents(seurat,
                        "21" = "HB.3",
                        "22" = "FB & eye.7",
                        "23" = "FB & eye.8")
-umapPlot <- DimPlot(seurat, reduction = "wnn.umap") + scale_color_igv()
+levels(seurat) <- c("SC.1","SC.2","SC.3","CHB.1","CHB.2","CHB.3","NC.1","NC.2","HB.1","HB.2","HB.3",
+                    "MHB.1","MHB.2","MHB.3","MB","FB","FB & eye.1","FB &  eye.2","FB & eye.3",
+                    "FB & eye.4","FB & eye.5","FB & eye.6","FB & eye.7","FB & eye.8")
+umapPlot <- DimPlot(seurat, reduction = "wnn.umap", pt.size = 3) + scale_color_igv() + guides(color = guide_legend(override.aes = list(size=4), ncol=1) )
 umapPlot
 seurat$Clusters <- Idents(seurat)
-ggsave(filename = "../results/Fig3_HB10hpf_umapPlot.png", plot = umapPlot)
+#ggsave(filename = "../results/Fig3_HB10hpf_umapPlot.png", plot = umapPlot)
 ```
 
 ```{r save}
@@ -94,30 +97,207 @@ top5.pval
 
 # 5. Plots
 ## 5.1 dotplot
-```{r dotplot, fig.width=25, fig.height=7}
+```{r dotplot, fig.width=20, fig.height=5}
 dotPlot <- DotPlot(seurat, features = unique(top5.pval$gene)) + RotatedAxis()
 dotPlot
-ggsave(filename = "../results/Fig3_HB10hpf_dotPlot.png", plot = dotPlot)
+#ggsave(filename = "../results/Fig3_HB10hpf_dotPlot.png", plot = dotPlot)
 ```
 
 ## 5.2 heatmap
 ```{r heatmap, fig.height=20, fig.width=12}
 heatmapPlot <- DoHeatmap(seurat, features = unique(top5.pval$gene), group.colors = mypal, size = 5, angle = 90) + guides(color = FALSE)
 heatmapPlot
-ggsave(filename = "../results/Fig3_HB10hpf_heatmapPlot.png", plot = heatmapPlot)
+#ggsave(filename = "../results/Fig3_HB10hpf_heatmapPlot.png", plot = heatmapPlot)
 ```
 
 ## 5.3 combine umap, dotplot and heatmap
 ```{r combined, fig.height=15, fig.width=20}
+# combined <- (((umapPlot + 
+#       theme(legend.text = element_text(size = 20))) |
+#      (heatmapPlot +
+#         theme(axis.text = element_blank()))) / 
+#     (dotPlot + 
+#        theme(axis.text.x = element_text(size = 10),
+#              axis.text.y = element_text(size = 12),
+#              legend.position = "bottom"))) +
+#     plot_layout(heights = c(2.1,1))
+# combined
+# ggsave(filename = "../results/Fig3_HB10hpf_combinedPlot.png", plot = combined)
+```
+
+## 5.4 Gene Expression and violin plots
+```{r, fig.width=7, fig.height=3}
+#genes1 <- FeaturePlot(seurat, features = c("sox3","neurod4"), reduction = "wnn.umap", keep.scale = "all")  
+#genes1
+#ggsave(filename = "../results/Fig3_HB10hpf_genes1_scaledToMax.png", plot = genes1)
+```
+
+```{r, fig.width=7, fig.height=3}
+genes1 <- FeaturePlot(seurat, features = c("sox3","neurod4"), reduction = "wnn.umap", max.cutoff = 1)  
+genes1
+#ggsave(filename = "../results/Fig3_HB10hpf_genes1_scaledToMin.png", plot = genes1)
+```
+
+```{r}
+genelist <- c("vgll3","egr2b","mafba","crabp2a","cyp26b1","cyp26c1","ppp1r14ab","dusp2")
+```
+
+```{r, fig.width=10, fig.height=10}
+# genes2 <- FeaturePlot(seurat, features = genelist, reduction = "wnn.umap", keep.scale = "all")  
+# genes2
+# ggsave(filename = "../results/Fig3_HB10hpf_genes2_scaledToMax.png", plot = genes2)
+```
+
+```{r, fig.width=10, fig.height=10}
+# genes2 <- FeaturePlot(seurat, features = genelist, reduction = "wnn.umap", max.cutoff = 1)  
+# genes2
+# ggsave(filename = "../results/Fig3_HB10hpf_genes2_scaledToMin.png", plot = genes2)
+```
+
+```{r, fig.width=15, fig.height=10}
+# violinPlot <- VlnPlot(seurat, features = genelist, same.y.lims = TRUE)
+# violinPlot
+# ggsave(filename = "../results/Fig3_HB10hpf_violinPlot.png", plot = violinPlot)
+```
+
+```{r}
+genes2 <- FeaturePlot(seurat, features = genelist, reduction = "wnn.umap", max.cutoff = 1, combine = FALSE)
+violinPlot <- VlnPlot(seurat, features = genelist, same.y.lims = TRUE, combine = FALSE)
+```
+
+```{r, fig.width=17, fig.height=13}
+genePlusViolin <- genes2[[1]] + violinPlot[[1]] + NoLegend() + genes2[[2]] + violinPlot[[2]] + NoLegend() + 
+  genes2[[3]] + violinPlot[[3]] + NoLegend() + genes2[[4]] + violinPlot[[4]] + NoLegend() +
+  genes2[[5]] + violinPlot[[5]] + NoLegend() + genes2[[6]] + violinPlot[[6]] + NoLegend() +
+  genes2[[7]] + violinPlot[[7]] + NoLegend() + genes2[[8]] + violinPlot[[8]] + NoLegend() +
+  plot_layout(ncol = 4, widths = c(1,2,1,2)) #& scale_color_gradient(low = "gray", high = "blue", limits = c(0,2.4))
+genePlusViolin
+#ggsave(filename = "../results/Fig3_HB10hpf_genePlusViolin.png", plot = genePlusViolin)
+```
+
+## Chromvar activity
+```{r}
+seurat <- RunChromVAR(
+  object = seurat,
+  genome = BSgenome.Drerio.UCSC.danRer11,
+  assay = "peaks" 
+)
+```
+
+```{r}
+motif.names <- c("EGR2","TEAD1","PKNOX1","MAF","HNF1B","PBX1")
+motifs <- c("MA0472.2","MA0090.3","MA0782.2","MA1520.1","MA0153.2","MA0070.1")
+names(motifs) <- motif.names
+```
+
+```{r}
+# motifPlots <- MotifPlot(
+#     object = seurat,
+#     motifs = motifs,
+#     assay = 'peaks') 
+# motifPlots
+```
+
+```{r}
+GetChromVarPlots <- function(object, motifs){
+  DefaultAssay(object) <- "chromvar"
+  mylist <- list()
+  for(motif in 1:length(motifs)){
+    if(motif == 3){
+      p <- FeaturePlot(
+        object = object,
+        reduction = "wnn.umap",
+        features = motifs[[motif]],
+        min.cutoff = 'q10',
+        max.cutoff = 2,
+        pt.size = 1)  +
+        ggtitle(paste(motifs[[motif]],names(motifs[motif]), sep = " ")) +
+        theme(plot.title = element_text(size = 20))
+    }else{
+      p <- FeaturePlot(
+        object = object,
+        reduction = "wnn.umap",
+        features = motifs[[motif]],
+        min.cutoff = 'q10',
+        max.cutoff = 2,
+        pt.size = 1)  +
+        ggtitle(paste(motifs[[motif]],names(motifs[motif]), sep = " ")) +
+        theme(plot.title = element_text(size = 20)) + NoLegend()
+    }
+    
+    mylist[[motifs[[motif]]]] <- p
+  }
+  
+  return(mylist)
+}
+```
+
+```{r, fig.width=7, fig.height=5}
+cv.list <- GetChromVarPlots(seurat, motifs)
+wrap_plots(cv.list)
+```
+
+```{r}
+motif.list <- list()
+for(motif in names(motifs)){
+  motif.list[[motif]] <- MotifPlot(
+    object = seurat,
+    motifs = motifs[[motif]],
+    assay = 'peaks') + theme(axis.title.y = element_blank(), axis.text.y = element_blank(), strip.text = element_text(size = 20))
+}
+motif.list[[1]]
+```
+
+```{r, fig.width=15, fig.height=5}
+motifPlusChromvar <- motif.list[[1]] + cv.list[[1]] + motif.list[[2]] + cv.list[[2]] +
+  motif.list[[3]] + cv.list[[3]] + motif.list[[4]] + cv.list[[4]] +
+  motif.list[[5]] + cv.list[[5]] + motif.list[[6]] + cv.list[[6]] +
+  plot_layout(ncol = 6)
+motifPlusChromvar
+#ggsave(filename = "../results/Fig3_HB10hpf_motifPlusChromvar.png", plot = motifPlusChromvar)
+```
+
+```{r BuildTree}
+seurat <- BuildClusterTree(seurat, graph = "wsnn")
+```
+
+```{r plot}
+data.tree <- Tool(object = seurat, slot = "BuildClusterTree")
+pdf(file = "../results/Fig3_HB10hpf_clustertree_unrooted_vrs1.pdf")#,width = 800, height = 800)
+p1 <- ape::plot.phylo(x = data.tree,  use.edge.length = FALSE, cex = 0.7, type = "u", 
+                      align.tip.label = TRUE, label.offset = 0.5, lab4ut = "axial")
+p1
+dev.off()
+```
+```{r, fig.height=7, fig.width=7}
+pdf(file = "../results/Fig3_HB10hpf_clustertree_unrooted_vrs2.pdf")
+p1 <- ape::plot.phylo(x = data.tree,  use.edge.length = FALSE, cex = 0.7, type = "u", 
+                      align.tip.label = TRUE, label.offset = 0.5)
+p1
+dev.off()
+```
+
+## Fig 3 combined
+
+Since unrooted phylogram is not a ggplot, it cannot be combined with other plots using patchwork.
+
+```{r combined, fig.height=35, fig.width=23}
 combined <- (((umapPlot + 
       theme(legend.text = element_text(size = 20))) |
      (heatmapPlot +
-        theme(axis.text = element_blank()))) / 
+        theme(axis.text = element_blank()))) /
+       plot_spacer() /
     (dotPlot + 
-       theme(axis.text.x = element_text(size = 10),
+       theme(axis.text.x = element_text(size = 12),
              axis.text.y = element_text(size = 12),
-             legend.position = "bottom"))) +
-    plot_layout(heights = c(2.1,1))
+             legend.position = "bottom")) /
+      plot_spacer() /
+  (((genePlusViolin + plot_layout(guides = "collect")) | 
+      ((genes1 + plot_layout(guides = "collect")) / plot_spacer()) + plot_layout(heights = c(0.7,3))) 
+   + plot_layout(widths = c(2.8,1))) /
+    plot_spacer() /
+  (motifPlusChromvar + plot_layout(guides = "collect"))) +
+    plot_layout(heights = c(2,0.05,1,0.05,3,0.05,1.3))
 combined
 ggsave(filename = "../results/Fig3_HB10hpf_combinedPlot.png", plot = combined)
 ```

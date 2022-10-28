@@ -1,0 +1,182 @@
+---
+title: "HB13hpf and HB16hpf motifs and ChromVar activity R Notebook"
+output:
+  github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# 1. libraries and palette
+```{r libraries, results=F}
+suppressPackageStartupMessages({
+  library(Seurat)
+  library(org.Dr.eg.db)
+  library(BSgenome.Drerio.UCSC.danRer11)
+  library(Signac)
+  library(knitr)
+  library(kableExtra)
+  library(dplyr)
+  library(ggplot2)
+  library(ggsci)
+  library(limma)
+  library(JASPAR2020)
+  library(patchwork)
+  library(TFBSTools)
+  library(motifmatchr)
+  library(harmony)
+})
+options(future.globals.maxSize = 4000 * 1024^2)
+```
+
+```{r mypal}
+mypal <- pal_igv(palette = "default",alpha = 1)(35)
+```
+
+# 2. Read data
+```{r readData}
+HB13hpf <- readRDS(file = "RDSfiles/HB13hpf_neural.RDS")
+DefaultAssay(HB13hpf) <- "SCT"
+Idents(HB13hpf) <- "Clusters"
+DimPlot(HB13hpf, reduction = "wnn.umap", label = T, repel = T) + scale_color_igv()
+```
+
+```{r readData}
+HB16hpf <- readRDS(file = "RDSfiles/HB16hpf_neural.RDS")
+DefaultAssay(HB16hpf) <- "SCT"
+Idents(HB16hpf) <- "Clusters"
+DimPlot(HB16hpf, reduction = "wnn.umap", label = T, repel = T) + scale_color_igv()
+```
+
+# 3. Gene expression UMAPs
+```{r, fig.width=7, fig.height=3}
+HB13_tead1b <- FeaturePlot(HB13hpf, features = "tead1b", reduction = "wnn.umap", max.cutoff = 2)  
+HB13_tead1b
+HB13_tead3b <- FeaturePlot(HB13hpf, features = "tead3b", reduction = "wnn.umap", max.cutoff = 2)  
+HB13_tead3b
+HB16_tead1b <- FeaturePlot(HB16hpf, features = "tead1b", reduction = "wnn.umap", max.cutoff = 2)  
+HB16_tead1b
+HB16_tead3b <- FeaturePlot(HB16hpf, features = "tead3b", reduction = "wnn.umap", max.cutoff = 2)  
+HB16_tead3b
+```
+
+```{r}
+gene_exp <- plot_spacer() + HB13_tead1b + HB16_tead1b + plot_spacer() + HB13_tead3b + HB16_tead3b + 
+  plot_layout(ncol = 6, guides = "collect")
+```
+
+# 4. Motif and ChromVar plots
+
+```{r}
+HB13hpf <- RunChromVAR(
+  object = HB13hpf,
+  genome = BSgenome.Drerio.UCSC.danRer11,
+  assay = "peaks" 
+)
+```
+
+```{r}
+HB16hpf <- RunChromVAR(
+  object = HB16hpf,
+  genome = BSgenome.Drerio.UCSC.danRer11,
+  assay = "peaks" 
+)
+```
+
+```{r}
+motif.names <- c("EGR2","MAF","PKNOX1","HOXA4","PBX1","TEAD1","NR2F1(var.2)","NR2C2")
+motifs <- c("MA0472.2","MA0117.2","MA0782.2","MA1496.1","MA0070.1","MA0090.3","MA1537.1","MA0504.1")
+names(motifs) <- motif.names
+```
+
+```{r}
+GetChromVarPlots <- function(object, motifs){
+  DefaultAssay(object) <- "chromvar"
+  mylist <- list()
+  for(motif in 1:length(motifs)){
+    p <- FeaturePlot(
+      object = object,
+      reduction = "wnn.umap",
+      features = motifs[[motif]],
+      min.cutoff = 'q10',
+      max.cutoff = 2,
+      pt.size = 1)  +
+      ggtitle(paste(motifs[[motif]],names(motifs[motif]), sep = " ")) +
+      theme(plot.title = element_text(size = 20)) + NoLegend()
+    mylist[[motifs[[motif]]]] <- p
+  }
+  
+  return(mylist)
+}
+```
+
+```{r}
+GetChromVarPlotsPlusLegend <- function(object, motifs){
+  DefaultAssay(object) <- "chromvar"
+  mylist <- list()
+  for(motif in 1:length(motifs)){
+    p <- FeaturePlot(
+      object = object,
+      reduction = "wnn.umap",
+      features = motifs[[motif]],
+      min.cutoff = 'q10',
+      max.cutoff = 2,
+      pt.size = 1)  +
+      ggtitle(paste(motifs[[motif]],names(motifs[motif]), sep = " ")) +
+      theme(plot.title = element_text(size = 20))
+    mylist[[motifs[[motif]]]] <- p
+  }
+  
+  return(mylist)
+}
+```
+
+```{r, fig.width=7, fig.height=5}
+HB13.cv.motif1 <- GetChromVarPlotsPlusLegend(HB13hpf, motifs[1])
+HB13.cv.list <- GetChromVarPlots(HB13hpf, motifs)
+wrap_plots(HB13.cv.list)
+```
+
+```{r, fig.width=7, fig.height=5}
+HB16.cv.list <- GetChromVarPlots(HB16hpf, motifs)
+wrap_plots(HB16.cv.list)
+```
+
+```{r}
+motif.list <- list()
+for(motif in names(motifs)){
+  motif.list[[motif]] <- MotifPlot(
+    object = HB13hpf,
+    motifs = motifs[[motif]],
+    assay = 'peaks') + theme(axis.title.y = element_blank(), axis.text.y = element_blank(), strip.text = element_text(size = 20))
+}
+motif.list[[1]]
+```
+
+```{r, fig.width=15, fig.height=15}
+motifPlusChromvar <- motif.list[[1]] + HB13.cv.motif1[[1]] + HB16.cv.list[[1]] + 
+  motif.list[[2]] + HB13.cv.list[[2]] + HB16.cv.list[[2]] +
+  motif.list[[3]] + HB13.cv.list[[3]] + HB16.cv.list[[3]] +
+  motif.list[[4]] + HB13.cv.list[[4]] + HB16.cv.list[[4]] +
+  motif.list[[5]] + HB13.cv.list[[5]] + HB16.cv.list[[5]] +
+  motif.list[[6]] + HB13.cv.list[[6]] + HB16.cv.list[[6]] +
+  motif.list[[7]] + HB13.cv.list[[7]] + HB16.cv.list[[7]] +
+  motif.list[[8]] + HB13.cv.list[[8]] + HB16.cv.list[[8]] +
+  plot_layout(ncol = 6, guides = "collect") 
+motifPlusChromvar
+```
+
+# Fig 4 combined plots
+
+```{r, fig.width=15, fig.height=15}
+combined <- gene_exp / motifPlusChromvar + plot_layout(heights = c(1,5))
+combined
+ggsave(filename = "../results/Fig4_HB13hpf_HB16hpf_combinedPlot.png", plot = combined)
+```
+
+
+```{r}
+sessionInfo()
+```
+

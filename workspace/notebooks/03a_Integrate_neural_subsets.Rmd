@@ -1,0 +1,289 @@
+---
+title: "Integration of HB10hpf, HB13hpf, and HB16hpf neural subsets RNAseq_ATACseq samples R Notebook"
+output: 
+  html_notebook:
+    toc: TRUE
+    toc_depth: 2
+    toc_float: TRUE
+---
+
+```{css, echo = F}
+caption {
+      color: blue;
+      font-weight: bold;
+      font-size: 2.0em;
+    }
+```
+
+This integration strategy will be to use the ATAC-seq peaks from all 3 multiomic subset samples to create a peak set that will be used to add a Chromatin assay called "int_peaks" to each sample.  The multiomic sample can then be RNA-seq integrated which will merge the ATAC-seq assays. Will then use harmony to integrate the ATAC-seq based on the "int_peaks" assays and finally will integrate the Seurat integrated RNA-seq and harmony integrated ATAC-seq with weighted nearest neighbor for final cluster determination.
+
+```{r, results=F}
+library(Seurat)
+library(org.Dr.eg.db)
+library(BSgenome.Drerio.UCSC.danRer11)
+library(Signac)
+library(knitr)
+library(kableExtra)
+library(dplyr)
+library(ggplot2)
+library(ggsci)
+library(limma)
+library(JASPAR2020)
+library(patchwork)
+library(TFBSTools)
+library(motifmatchr)
+library(AnnotationHub)
+library(harmony)
+options(future.globals.maxSize = 4000 * 1024^2)
+```
+
+# Get annotation
+```{r}
+ah = AnnotationHub()
+GRCz11.v99.EnsDb = ah[["AH78759"]]  ## /beevol/home/orourke/genomes/cellranger_arc_genomes/zebrafishPlusGFP built on GRCz11.v99.gtf
+#GRCz11.v103.EnsDb <- ah[["AH89399"]]
+```
+```{r, results=FALSE, warning=FALSE}
+# get gene annotations for GRCz11
+annotation <- GetGRangesFromEnsDb(ensdb = GRCz11.v99.EnsDb, verbose = FALSE)
+seqlevelsStyle(annotation) <- "UCSC"
+genome(annotation) <- "GRCz11"
+```
+
+# Read data
+```{r}
+HB10hpf <- readRDS("~/Documents/Projects/Sagerstrom/scRNA-seq_ATAC-seq_reanalysis_2021_07_12/InitialExploration/Neural_subsets/RDSfiles/HB10hpf_neural.RDS")
+HB13hpf <- readRDS("~/Documents/Projects/Sagerstrom/scRNA-seq_ATAC-seq_reanalysis_2021_07_12/InitialExploration/Neural_subsets/RDSfiles/HB13hpf_neural.RDS")
+HB16hpf <- readRDS("~/Documents/Projects/Sagerstrom/scRNA-seq_ATAC-seq_reanalysis_2021_07_12/InitialExploration/Neural_subsets/RDSfiles/HB16hpf_neural.RDS")
+```
+
+# Common peak set
+The first step in integration is to create a common ATAC peak set
+
+```{r}
+## note the peaks assay is the one created with the mac2 called peaks
+HB10hpf@assays$peaks@ranges
+HB13hpf@assays$peaks@ranges
+HB16hpf@assays$peaks@ranges
+```
+
+```{r}
+# Create a unified set of peaks to quantify in each dataset
+combined.peaks <- reduce(x = c(HB10hpf@assays$peaks@ranges,HB13hpf@assays$peaks@ranges,HB16hpf@assays$peaks@ranges))
+# Filter out bad peaks based on length
+combined.peaks
+peakwidths <- width(combined.peaks)
+combined.peaks <- combined.peaks[peakwidths  < 10000 & peakwidths > 20]
+combined.peaks
+```
+# Quantify peaks in each sample
+
+The processed RNAseq/ATACseq samples already have a Fragment class object so can use that to create a new assay which will call int_peaks, to distinguish it from the original ATAC peaks assay from the 10X genomics peak calls and the peaks assay from the macs2 peak calls for the individual sample
+```{r}
+## first quantify combined peaks in each sample
+DefaultAssay(HB10hpf) <- "peaks"
+HB10hpf.counts <- FeatureMatrix(
+  fragments = Fragments(HB10hpf),
+  features = combined.peaks,
+  cells = colnames(HB10hpf)
+)
+DefaultAssay(HB13hpf) <- "peaks"
+HB13hpf.counts <- FeatureMatrix(
+  fragments = Fragments(HB13hpf),
+  features = combined.peaks,
+  cells = colnames(HB13hpf)
+)
+DefaultAssay(HB16hpf) <- "peaks"
+HB16hpf.counts <- FeatureMatrix(
+  fragments = Fragments(HB16hpf),
+  features = combined.peaks,
+  cells = colnames(HB16hpf)
+)
+```
+
+```{r}
+## next create chromatin assay for each sample
+HB10hpf[["int_peaks"]] <- CreateChromatinAssay(
+    counts = HB10hpf.counts,
+    fragments = Fragments(HB10hpf),
+    annotation = annotation,
+    genome = 'GRCz11'
+  )
+HB13hpf[["int_peaks"]] <- CreateChromatinAssay(
+    counts = HB13hpf.counts,
+    fragments = Fragments(HB13hpf),
+    annotation = annotation,
+    genome = 'GRCz11'
+  )
+HB16hpf[["int_peaks"]] <- CreateChromatinAssay(
+    counts = HB16hpf.counts,
+    fragments = Fragments(HB10hpf),
+    annotation = annotation,
+    genome = 'GRCz11'
+  )
+```
+
+```{r}
+HB10hpf <- FindTopFeatures(HB10hpf, min.cutoff = 10)
+HB10hpf <- RunTFIDF(HB10hpf)
+HB10hpf <- RunSVD(HB10hpf)
+
+HB13hpf <- FindTopFeatures(HB13hpf, min.cutoff = 10)
+HB13hpf <- RunTFIDF(HB13hpf)
+HB13hpf <- RunSVD(HB13hpf)
+
+HB16hpf <- FindTopFeatures(HB16hpf, min.cutoff = 10)
+HB16hpf <- RunTFIDF(HB16hpf)
+HB16hpf <- RunSVD(HB16hpf)
+```
+
+Add orig.ident info to each
+```{r}
+HB10hpf$orig.ident <- "HB10hpf"
+HB13hpf$orig.ident <- "HB13hpf"
+HB16hpf$orig.ident <- "HB16hpf"
+```
+
+```{r}
+saveRDS(HB10hpf, file = "RDSfiles/HB10hpf.neural.int_peaks.assay.RDS")
+saveRDS(HB13hpf, file = "RDSfiles/HB13hpf.neural.int_peaks.assay.RDS")
+saveRDS(HB16hpf, file = "RDSfiles/HB16hpf.neural.int_peaks.assay.RDS")
+```
+
+Integrate samples by RNA-seq (will also merge ATAC-seq)
+
+```{r}
+RNA_integration <- function(seurat.list){
+  features <- SelectIntegrationFeatures(object.list = seurat.list, nfeatures = 3000)
+  seurat.list <- PrepSCTIntegration(object.list = seurat.list, anchor.features = features)
+  seurat.anchors <- FindIntegrationAnchors(object.list = seurat.list, normalization.method = "SCT", 
+                                           anchor.features = features)
+  seurat.int <- IntegrateData(anchorset = seurat.anchors, normalization.method = "SCT")
+  seurat.int <- RunPCA(seurat.int, verbose = FALSE)
+  seurat.int <- RunUMAP(seurat.int, dims = 1:50, reduction.name = 'umap.rna', reduction.key = 'rnaUMAP_')
+  
+  return(seurat.int)
+}
+```
+
+```{r}
+DefaultAssay(HB10hpf) <- "SCT"
+DefaultAssay(HB13hpf) <- "SCT"
+DefaultAssay(HB16hpf) <- "SCT"
+HB10hpf$orig.ident <- "HB10hpf"
+HB13hpf$orig.ident <- "HB13hpf"
+HB16hpf$orig.ident <- "HB16hpf"
+```
+
+# integration 3WT
+```{r}
+list.3WT <- list(HB10hpf,HB13hpf,HB16hpf)
+int.3WT <- RNA_integration(list.3WT)
+```
+
+```{r}
+int.3WT[["int_peaks"]]
+```
+
+```{r}
+saveRDS(int.3WT, file = "RDSfiles/int.neural.3WT.RDS")
+```
+
+# test of simple merge of ATAC seq
+
+```{r}
+GetLSI <- function(seurat){
+  seurat <- FindTopFeatures(seurat, min.cutoff = 10)
+  seurat <- RunTFIDF(seurat)
+  seurat <- RunSVD(seurat)
+  seurat <- RunUMAP(seurat, reduction = 'lsi', dims = 2:50)
+  
+  return(seurat)
+}
+```
+
+## int.3WT
+```{r}
+DefaultAssay(int.3WT) <- "int_peaks"
+int.3WT <- GetLSI(int.3WT)
+p1.int.3WT <- DimPlot(int.3WT, group.by = "orig.ident")
+p1.int.3WT
+```
+
+# Harmony integration of ATAC-seq
+```{r}
+RunATACharmony <- function(seurat){
+  seurat <- RunHarmony(object=seurat,group.by.vars='orig.ident',
+                                  reduction='lsi',assay.use='int_peaks',project.dim=F)
+  seurat <- RunUMAP(seurat,dims=2:50,reduction='harmony',reduction.name = "umap.atac",reduction.key = "atacUMAP_")
+  seurat <- FindNeighbors(seurat, dims = 1:50,reduction='harmony')
+  seurat <- FindClusters(seurat, resolution = 2,reduction='harmony')
+  seurat <- BuildClusterTree(object = seurat,reorder = T,reorder.numeric = T,verbose = T)
+  
+  return(seurat)
+}
+```
+
+## int.3WT
+```{r, fig.width=10}
+DefaultAssay(int.3WT) <- "int_peaks"
+int.3WT <- RunATACharmony(int.3WT)
+p2.int.3WT <- DimPlot(int.3WT,group.by='orig.ident',pt.size=0.1, reduction = "umap.atac") + ggplot2::ggtitle('int.3WT')
+p3.int.3WT <- DimPlot(int.3WT, group.by = "int_peaks_snn_res.2",pt.size=0.1, reduction = "umap.atac") + scale_color_igv()
+p2.int.3WT + p3.int.3WT
+```
+
+```{r, fig.width=10, fig.height=3}
+(p1.int.3WT + ggtitle("int.3WT Merged")) | (p2.int.3WT + ggtitle("int.3WT Integrated"))
+```
+
+```{r}
+saveRDS(int.3WT, file = "RDSfiles/int.neural.3WT.RDS")
+```
+
+# Weighted Nearest Neighbor integratio of RNAseq and ATACseq
+
+```{r, results=F}
+RunWnnRnaAtac <- function(seurat){
+  seurat <- FindMultiModalNeighbors(seurat, reduction.list = list("pca", "harmony"), dims.list = list(1:50, 2:50))
+  seurat <- RunUMAP(seurat, nn.name = "weighted.nn", reduction.name = "wnn.umap", reduction.key = "wnnUMAP_", assay = "RNA")
+  seurat <- FindClusters(seurat, graph.name = "wsnn", algorithm = 3, verbose = FALSE)
+}
+
+```
+
+## int.3WT
+```{r}
+DefaultAssay(int.3WT) <- "integrated"
+int.3WT <- RunWnnRnaAtac(int.3WT)
+```
+
+```{r, fig.width=10, fig.height=5, results=F}
+p.3WT.rna <- DimPlot(int.3WT, reduction = "umap.rna", label = TRUE, label.size = 5, repel = TRUE) + ggtitle("integrated RNA")
+p.3WT.atac <- DimPlot(int.3WT, reduction = "umap.atac", label = TRUE, label.size = 5, repel = TRUE) + ggtitle("integrated ATAC")
+p.3WT.wnn <- DimPlot(int.3WT, reduction = "wnn.umap", label = TRUE, label.size = 5, repel = TRUE) + ggtitle("integrated WNN")
+p.3WT.rna + p.3WT.atac + p.3WT.wnn & NoLegend() & theme(plot.title = element_text(hjust = 0.5))
+p.3WT.rna
+p.3WT.atac
+p.3WT.wnn
+```
+
+```{r, fig.width=10, fig.height=5, results=F}
+p.3WT.rna <- DimPlot(int.3WT, reduction = "umap.rna",group.by = "orig.ident") + ggtitle("integrated RNA") + NoLegend()
+p.3WT.atac <- DimPlot(int.3WT, reduction = "umap.atac",group.by = "orig.ident") + ggtitle("integrated ATAC") + NoLegend()
+p.3WT.wnn <- DimPlot(int.3WT, reduction = "wnn.umap",group.by = "orig.ident") + ggtitle("integrated WNN")
+p.3WT.rna + p.3WT.atac + p.3WT.wnn & theme(plot.title = element_text(hjust = 0.5))
+```
+
+
+
+```{r}
+saveRDS(int.3WT, file = "RDSfiles/int.neural.3WT.RDS")
+```
+
+
+```{r}
+sessionInfo()
+```
+
+

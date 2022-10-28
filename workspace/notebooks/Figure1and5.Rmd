@@ -1,0 +1,245 @@
+---
+title: "Cluster Naming and plots neural HB13hpf R Notebook"
+output: 
+  github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# 1. libraries and palette
+```{r libraries, results=F}
+suppressPackageStartupMessages({
+  library(Seurat)
+  library(org.Dr.eg.db)
+  library(BSgenome.Drerio.UCSC.danRer11)
+  library(Signac)
+  library(knitr)
+  library(kableExtra)
+  library(dplyr)
+  library(ggplot2)
+  library(ggsci)
+  library(limma)
+  library(JASPAR2020)
+  library(patchwork)
+  library(TFBSTools)
+  library(motifmatchr)
+  library(harmony)
+})
+options(future.globals.maxSize = 4000 * 1024^2)
+```
+
+```{r mypal}
+mypal <- pal_igv(palette = "default",alpha = 1)(35)
+```
+
+
+# 2. Read data
+```{r readData}
+seurat <- readRDS(file = "RDSfiles/HB13hpf_neural.RDS")
+DefaultAssay(seurat) <- "SCT"
+Idents(seurat) <- "wsnn_res.8"
+DimPlot(seurat, reduction = "wnn.umap", label = T, repel = T) + scale_color_igv()
+```
+
+# 3. Rename Idents
+```{r RenameIdents}
+Idents(seurat) <- "wsnn_res.8"
+seurat <- RenameIdents(seurat,
+                       "0" = "CHB.1",
+                       "1" = "r3",
+                       "2" = "CHB.2",
+                       "3" = "MHB.1",
+                       "4" = "SC.1",
+                       "5" = "r5",
+                       "6" = "r1",
+                       "7" = "CHB.3",
+                       "8" = "r4",
+                       "9" = "r6",
+                       "10" = "MB.1",
+                       "11" = "Neuron",
+                       "12" = "r2",
+                       "13" = "FB.1",
+                       "14" = "MB.2",
+                       "15" = "MHB.2",
+                       "16" = "MHB.3",
+                       "17" = "MHB.4",
+                       "18" = "SC.2",
+                       "19" = "MB.3",
+                       "20" = "FB.2",
+                       "21" = "r1 & r2",
+                       "22" = "Ciliated",
+                       "23" = "FB.3",
+                       "24" = "FB.4",
+                       "25" = "MHB.5",
+                       "26" = "SC.3")
+levels(seurat) <- c("FB.1","FB.2","FB.3","FB.4","MB.1","MB.2","MB.3","MHB.1","MHB.2","MHB.3",
+                    "MHB.4","MHB.5","r1","r2","r1 & r2","r3","r4","r5","r6","CHB.1","CHB.2",
+                    "CHB.3","SC.1","SC.2","SC.3","Neuron","Ciliated")
+umapPlot <- DimPlot(seurat, reduction = "wnn.umap", pt.size = 3) + scale_color_igv() + guides(color = guide_legend(override.aes = list(size=4), ncol=1) )
+umapPlot
+seurat$Clusters <- Idents(seurat)
+#ggsave(filename = "../results/Fig1_HB13hpf_umapPlot.png", plot = umapPlot)
+```
+
+```{r save}
+saveRDS(seurat, file = "RDSfiles/HB13hpf_neural.RDS")
+```
+
+# 4. Find DE genes
+```{r markers, results=F}
+All.markers <- FindAllMarkers(seurat, only.pos = T, verbose = F)
+write.table(All.markers, file = "../results/DataS2_Fig1_HB13hpf_markers.txt", sep = "\t", quote = F, col.names = NA)
+```
+
+```{r top5}
+top5.pval <- All.markers %>% group_by(cluster) %>% top_n(n=-5, wt = p_val) %>% top_n(n=5, wt = avg_log2FC)
+top5.pval
+```
+
+# 5. Plots
+## 5.1 dotplot
+```{r dotplot, fig.width=25, fig.height=7}
+dotPlot <- DotPlot(seurat, features = unique(top5.pval$gene)) + RotatedAxis()
+dotPlot
+#ggsave(filename = "../results/Fig1_HB13hpf_dotPlot.png", plot = dotPlot)
+```
+
+## 5.2 heatmap
+```{r heatmap, fig.height=15, fig.width=10}
+heatmapPlot <- DoHeatmap(seurat, features = unique(top5.pval$gene), group.colors = mypal, size = 5, angle = 90) + guides(color = FALSE)
+heatmapPlot
+ggsave(filename = "../results/Fig5_HB13hpf_heatmapPlot.png", plot = heatmapPlot) ## heatmap included in Fig 5 not Fig 1
+```
+
+# Build Cluster Tree
+```{r}
+seurat <- BuildClusterTree(seurat, graph = "wsnn")
+```
+
+```{r, fig.width=5, fig.height=3}
+p <- PlotClusterTree(seurat,direction = "rightwards")
+p
+```
+
+```{r, fig.height=7, fig.width=7}
+data.tree <- Tool(object = seurat, slot = "BuildClusterTree")
+pdf(file = "../results/Fig5_HB13hpf_clustertree_unrooted_vrs1.pdf")
+p1 <- ape::plot.phylo(x = data.tree,  use.edge.length = FALSE, cex = 0.8, type = "u", 
+                      align.tip.label = TRUE, label.offset = 0.5, lab4ut = "axial")
+p1
+dev.off()
+```
+```{r, fig.height=7, fig.width=7}
+pdf(file = "../results/Fig5_HB13hpf_clustertree_unrooted_vrs2.pdf")
+p1 <- ape::plot.phylo(x = data.tree,  use.edge.length = FALSE, cex = 0.8, type = "u", 
+                      align.tip.label = TRUE, label.offset = 0.5)
+p1
+dev.off()
+```
+
+## 5.3 combine umap, dotplot and heatmap
+```{r combined, fig.height=15, fig.width=20}
+# combined <- (((umapPlot + 
+#       theme(legend.text = element_text(size = 20))) |
+#      (heatmapPlot +
+#         theme(axis.text = element_blank()))) / 
+#     (dotPlot + 
+#        theme(axis.text.x = element_text(size = 10),
+#              axis.text.y = element_text(size = 12),
+#              legend.position = "bottom"))) +
+#     plot_layout(heights = c(2.1,1))
+# combined
+# ggsave(filename = "../results/Fig1_HB13hpf_combined2Plot.png", plot = combined)
+```
+
+```{r, fig.width=7, fig.height=3}
+#genes1 <- FeaturePlot(seurat, features = c("sox3","neurod4"), reduction = "wnn.umap", keep.scale = "all")  
+#genes1
+#ggsave(filename = "../results/Fig1_HB13hpf_genes1_scaledToMax.png", plot = genes1)
+```
+
+```{r, fig.width=7, fig.height=3}
+genes1 <- FeaturePlot(seurat, features = c("sox3","neurod4"), reduction = "wnn.umap", max.cutoff = 1)  
+genes1
+#ggsave(filename = "../results/Fig1_HB13hpf_genes1_scaledToMin.png", plot = genes1)
+```
+
+```{r}
+genelist <- c("egr2b","mafba","sema3ab","fgf3","cyp26b1","vgll3","tgfbr2b","irx1b")
+```
+
+```{r, fig.width=10, fig.height=10}
+# genes2 <- FeaturePlot(seurat, features = genelist, reduction = "wnn.umap", keep.scale = "all")  
+# genes2
+# ggsave(filename = "../results/Fig1_HB13hpf_genes2_scaledToMax.png", plot = genes2)
+```
+
+```{r, fig.width=10, fig.height=10}
+#genes2 <- FeaturePlot(seurat, features = genelist, reduction = "wnn.umap", max.cutoff = 1)  
+#genes2
+#ggsave(filename = "../results/Fig1_HB13hpf_genes2_scaledToMin.png", plot = genes2)
+```
+
+```{r, fig.width=15, fig.height=10}
+#violinPlot <- VlnPlot(seurat, features = genelist, same.y.lims = TRUE)
+#violinPlot
+#ggsave(filename = "../results/Fig1_HB13hpf_violinPlot.png", plot = violinPlot)
+```
+```{r}
+genes2 <- FeaturePlot(seurat, features = genelist, reduction = "wnn.umap", max.cutoff = 1, combine = FALSE)
+violinPlot <- VlnPlot(seurat, features = genelist, same.y.lims = TRUE, combine = FALSE)
+```
+
+```{r, fig.width=17, fig.height=13}
+genePlusViolin <- genes2[[1]] + violinPlot[[1]] + NoLegend() + genes2[[2]] + violinPlot[[2]] + NoLegend() + 
+  genes2[[3]] + violinPlot[[3]] + NoLegend() + genes2[[4]] + violinPlot[[4]] + NoLegend() +
+  genes2[[5]] + violinPlot[[5]] + NoLegend() + genes2[[6]] + violinPlot[[6]] + NoLegend() +
+  genes2[[7]] + violinPlot[[7]] + NoLegend() + genes2[[8]] + violinPlot[[8]] + NoLegend() +
+  plot_layout(ncol = 4, widths = c(1,2,1,2)) #& scale_color_gradient(low = "gray", high = "blue", limits = c(0,1))
+genePlusViolin
+#ggsave(filename = "../results/Fig1_HB13hpf_genePlusViolin.png", plot = genePlusViolin)
+```
+
+```{r, fig.width=14, fig.height=3}
+# genes3 <- FeaturePlot(seurat, features = c("casz1","zic2a","ntn1a","sp8b"), reduction = "wnn.umap", keep.scale = "all", ncol = 4)  
+# genes3
+#ggsave(filename = "../results/Fig1_HB13hpf_genes3_scaledToMax.png", plot = genes3)
+```
+
+```{r, fig.width=14, fig.height=3}
+genes3 <- FeaturePlot(seurat, features = c("casz1","zic2a","ntn1a","sp8b"), reduction = "wnn.umap", ncol = 4, max.cutoff = 1) #&
+  #scale_color_gradient(low = "gray", high = "blue", limits = c(0,2.4)) 
+genes3
+#ggsave(filename = "../results/Fig1_HB13hpf_genes3_scaledTo2.4.png", plot = genes3)
+```
+
+```{r combined, fig.height=25, fig.width=25}
+combined <- 
+  (((umapPlot +
+      theme(legend.text = element_text(size = 20))) /
+      plot_spacer() /
+     (genes1 + plot_layout(guides = "collect")) /
+     plot_spacer() + 
+     plot_layout(heights = c(2,0.1,0.7,3.1))
+  ) |
+  ((dotPlot +
+      theme(axis.text.x = element_text(size = 10),
+            axis.text.y = element_text(size = 12),
+            legend.position = "bottom")) /
+     plot_spacer() /
+     (genePlusViolin + plot_layout(guides = "collect")) /
+     plot_spacer() /
+     (genes3 + plot_layout(guides = "collect")) +
+     plot_layout(heights = c(1,0.1,4,0.1,0.7))
+  )) + 
+  plot_layout(widths = c(1,2.2))
+combined
+ggsave(filename = "../results/Fig1_HB13hpf_combinedPlot.png", plot = combined)
+```
+
+
+```{r sessionInfo}
+sessionInfo()
+```
