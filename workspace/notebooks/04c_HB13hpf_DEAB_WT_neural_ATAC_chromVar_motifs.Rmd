@@ -1,0 +1,154 @@
+---
+title: "ChromVar motif analysis of differentially active peaks in HB13hpf DEAB & WT neural subset R Notebook"
+header-includes:
+    - \usepackage{caption}
+    - \captionsetup{font=Huge}
+output: html_notebook
+---
+
+```{r, results=F}
+library(Seurat)
+library(org.Dr.eg.db)
+library(BSgenome.Drerio.UCSC.danRer11)
+library(Signac)
+library(dplyr)
+library(ggplot2)
+library(ggsci)
+library(limma)
+library(JASPAR2020)
+library(patchwork)
+library(TFBSTools)
+library(motifmatchr)
+library(kableExtra)
+options(future.globals.maxSize = 4000 * 1024^2)
+```
+
+```{r}
+mypal <- pal_igv(palette = "default",alpha = 1)(30)
+```
+
+# Read data
+
+```{r}
+seurat <- readRDS(file = "RDSfiles/HB13.WT.DEAB.neural.refMap.int.RDS")
+Idents(seurat) <- "predicted.Clusters"
+DimPlot(seurat, reduction = "ref.umap", split.by = "orig.ident") + scale_color_igv()
+```
+
+# Add Motifs to HB13hpf WT & DEAB object
+
+Note: RefMap merging adds chromVar assay to merged object from WT and DEAB objects but motifs class in peaks assay is lost. Need motifs class in peaks assay to get motif names.
+
+```{r}
+pfm <- getMatrixSet(
+  x = JASPAR2020,
+  opts = list(collection="CORE", all_versions = FALSE)
+)
+
+DefaultAssay(seurat) <- "peaks"
+seurat <- RegionStats(seurat, genome = BSgenome.Drerio.UCSC.danRer11, assay = "peaks")
+
+seurat <- AddMotifs(
+  object = seurat,
+  genome = BSgenome.Drerio.UCSC.danRer11,
+  pfm = pfm
+)
+```
+
+```{r}
+seurat <- RunChromVAR(seurat, genome = BSgenome.Drerio.UCSC.danRer11)
+```
+
+
+```{r}
+saveRDS(seurat, file = "RDSfiles/HB13.WT.DEAB.neural.refMap.int.RDS")
+```
+
+# Get differential activity by cluster
+
+Will plot top20 chromVar motifs
+```{r}
+GetDiffAct <- function(object,cluster, assay){
+  DefaultAssay(object) <- 'chromvar'
+  DA <- FindMarkers(
+    object = object,
+    ident.1 = cluster,
+    only.pos = TRUE,
+    test.use = 'LR',
+    latent.vars = 'nCount_peaks'
+  )
+  DA$motif <- rownames(DA)
+  DA$motif.name <- "NA"
+  for(motif in rownames(DA)){
+    #print(motif)
+    motif.name <- object@assays[[assay]]@motifs@motif.names[[motif]]
+    #print(motif.name)
+    DA[DA$motif == motif,]$motif.name <- motif.name
+  }
+  
+  return(DA)
+}
+
+GetChromVarPlots <- function(object, DA){
+  DefaultAssay(object) <- "chromvar"
+  mylist <- list()
+  for(motif in rownames(DA)){
+    p <- FeaturePlot(
+      object = object,
+      reduction = "ref.umap",
+      features = motif,
+      min.cutoff = 'q10',
+      max.cutoff = 'q90',
+      pt.size = 0.1)  + 
+      ggtitle(paste(motif,DA[DA$motif == motif,]$motif.name, sep = " ")) + 
+      theme(plot.title = element_text(size = 10))
+    mylist[[motif]] <- p
+  }
+  
+  return(mylist)
+}
+```
+
+
+```{r, fig.height=10, fig.width=10, results='asis', results=F}
+levels(seurat) <- c("FB.1","FB.2","FB.3","FB.4","MB.1","MB.2","MB.3","MHB.1","MHB.2","MHB.3","MHB.4","MHB.5","r1","r1 & r2","r2","r3","r4","r5","r6","CHB.1","CHB.2","CHB.3","SC.1","SC.2","SC.3","Ciliated","Neuron")
+DefaultAssay(seurat) <- "chromvar"
+for(cluster in levels(seurat)){
+  try({
+    DA <- GetDiffAct(seurat, cluster, "peaks")
+    # filename = gsub(" ", "", 
+    #                 paste("MarkersandPlots/motifTables/HB13hpf_DEAB_WT_neural_",
+    #                       cluster,"_ChromVarMotifs.txt", sep = ""),
+    #                 fixed = TRUE)
+    # write.table(DA, file = filename, quote = F, sep = "\t", col.names = NA)
+    
+    print(head(DA,20) %>% 
+            dplyr::mutate_if(is.numeric, funs(as.character(signif(., 3)))) %>%
+            kbl(caption = paste("Significant Differentially Active peaks in Cluster ",cluster)) %>% 
+            kable_classic(html_font = "Cambria")
+    )
+    
+    cat('\n')
+    
+    p <- MotifPlot(
+      object = seurat,
+      motifs = rownames(head(DA,20)),
+      assay = 'peaks') + ggtitle(paste("Motifs for Cluster ",cluster))
+    print(p)
+    
+    cv.list <- GetChromVarPlots(seurat, head(DA,20))
+    print(wrap_plots(cv.list) + plot_annotation(title = paste("ChromVar plots for Cluster ",cluster)))
+    
+    plot.new()
+    dev.off()
+  })
+}
+```
+
+
+
+
+```{r}
+sessionInfo()
+```
+

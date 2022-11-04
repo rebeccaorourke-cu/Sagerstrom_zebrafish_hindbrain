@@ -1,0 +1,133 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r, results=F}
+suppressPackageStartupMessages({
+  library(Seurat)
+  library(org.Dr.eg.db)
+  library(BSgenome.Drerio.UCSC.danRer11)
+  library(Signac)
+  library(knitr)
+  library(kableExtra)
+  library(dplyr)
+  library(ggplot2)
+  library(ggsci)
+  library(limma)
+  library(JASPAR2020)
+  library(patchwork)
+  library(TFBSTools)
+  library(motifmatchr)
+  library(AnnotationHub)
+  library(harmony)
+})
+options(future.globals.maxSize = 4000 * 1024^2)
+```
+
+# 2. Read data
+
+```{r}
+DEAB <- readRDS(file = "RDSfiles/HB13hpf_DEAB_neural.RDS")
+```
+
+```{r}
+WT <- readRDS(file = "RDSfiles/HB13hpf_neural.RDS")
+```
+
+
+```{r}
+DimPlot(DEAB, reduction = "wnn.umap", group.by = "WholeClusters") + scale_color_igv()
+```
+
+```{r}
+DimPlot(WT, reduction = "wnn.umap", group.by = "Clusters") + scale_color_igv()
+```
+
+# 3. Create Reference Map
+```{r}
+WT <- RunUMAP(WT, nn.name = "weighted.nn", reduction.name = "wnn.umap", 
+              reduction.key = "wnnUMAP_", return.model = TRUE, assay = "RNA") ## rerun of RunUMAP here to get model
+DimPlot(WT, group.by = "Clusters", reduction = "wnn.umap") + scale_color_igv()
+```
+## 3.1 Compute sPCS 
+```{r}
+WT <- RunSPCA(WT, assay = 'SCT', graph = 'wsnn')
+```
+
+## 3.2 Mapping
+```{r}
+anchors <- FindTransferAnchors(
+  reference = WT,
+  query = DEAB,
+  k.filter = NA,
+  reference.reduction = "spca",
+  normalization.method = "SCT",
+  dims = 1:50
+  )
+```
+
+```{r}
+DEAB <- MapQuery(
+  anchorset = anchors,
+  query = DEAB,
+  reference = WT,
+  refdata = list(
+    Clusters = "Clusters"
+  ),
+  reference.reduction = "spca", 
+  reduction.model = "wnn.umap"
+)
+```
+```{r}
+DimPlot(DEAB, reduction = "ref.umap", group.by = "predicted.Clusters", ) + scale_color_igv()
+```
+
+```{r}
+anchors <- FindTransferAnchors(
+  reference = WT,
+  query = WT,
+  k.filter = NA,
+  reference.reduction = "spca",
+  normalization.method = "SCT",
+  dims = 1:50
+  )
+```
+
+```{r}
+WT <- MapQuery(
+  anchorset = anchors,
+  query = WT,
+  reference = WT,
+  refdata = list(
+    Clusters = "Clusters"
+  ),
+  reference.reduction = "spca", 
+  reduction.model = "wnn.umap"
+)
+```
+
+## 3.3 merge WT and DEAB
+
+```{r}
+WT$orig.ident <- "WT"
+DEAB$orig.ident <- "DEAB"
+HB13.WT.DEAB <- merge(WT, DEAB, merge.dr = "ref.umap")
+```
+
+```{r}
+DimPlot(HB13.WT.DEAB, reduction = "ref.umap", group.by =  "predicted.Clusters") + scale_color_igv()
+```
+
+```{r}
+DimPlot(HB13.WT.DEAB, reduction = "ref.umap", group.by =  "predicted.Clusters", split.by = "orig.ident") + scale_color_igv()
+```
+
+```{r}
+saveRDS(HB13.WT.DEAB, file = "RDSfiles/HB13.WT.DEAB.neural.refMap.int.RDS")
+```
+
+```{r}
+sessionInfo()
+```
+

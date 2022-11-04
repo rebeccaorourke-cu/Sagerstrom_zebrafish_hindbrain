@@ -1,0 +1,80 @@
+---
+title: "Integrated HB13hpf DEAB and WT DEgenes R Notebook"
+output: 
+  html_notebook:
+    toc: TRUE
+    toc_depth: 3
+    toc_float: TRUE
+---
+
+# 1. libraries and functions
+```{r, results=F}
+suppressPackageStartupMessages({
+  library(Seurat)
+  library(org.Dr.eg.db)
+  library(BSgenome.Drerio.UCSC.danRer11)
+  library(Signac)
+  library(knitr)
+  library(kableExtra)
+  library(dplyr)
+  library(ggplot2)
+  library(ggsci)
+  library(limma)
+  library(JASPAR2020)
+  library(patchwork)
+  library(TFBSTools)
+  library(motifmatchr)
+  library(harmony)
+})
+options(future.globals.maxSize = 4000 * 1024^2)
+```
+
+```{r}
+mypal <- pal_igv(palette = "default",alpha = 1)(50)
+```
+
+# 2. Read data
+
+```{r}
+neural <- readRDS(file = "RDSfiles/HB13.WT.DEAB.neural.refMap.int.RDS")
+```
+
+```{r, fig.width=7}
+DimPlot(neural, reduction = "ref.umap", group.by =  "predicted.Clusters", split.by = "orig.ident") + scale_color_igv()
+```
+
+# 3. Cell counts
+
+```{r}
+table(neural$predicted.Clusters, neural$orig.ident)
+```
+
+# 4. DE genes for each cluster
+
+## 4.1 DE genes using both WT and DEAB cells in each cluster
+
+```{r, results=F}
+DefaultAssay(neural) <- "SCT"
+Idents(neural) <- "predicted.Clusters"
+levels(neural) <- c("FB.1","FB.2","FB.3","FB.4","MB.1","MB.2","MB.3","MHB.1","MHB.2","MHB.3","MHB.4","MHB.5","r1","r1 & r2","r2","r3","r4","r5","r6","CHB.1","CHB.2","CHB.3","SC.1","SC.2","SC.3","Ciliated","Neuron")
+All.markers <- FindAllMarkers(neural, only.pos = T, verbose = F, recorrect_umi=FALSE)
+#write.table(All.markers, file = "../results/HB13hpf_DEAB_WT_neural.All.markers.pred.Clusters.txt", sep = "\t", quote = F, col.names = NA)
+```
+
+```{r}
+top20 <- All.markers %>% group_by(cluster) %>% top_n(n=-20, wt = p_val) %>% top_n(n=20, wt = avg_log2FC)
+top20
+```
+
+```{r, fig.height=4}
+for(cluster in levels(neural)){
+  p <- DotPlot(neural, features = top20$gene[top20$cluster == cluster], dot.scale = 3) + RotatedAxis() + ggtitle(paste0("Cluster ",cluster))
+  print(p)
+}
+```
+
+
+```{r}
+sessionInfo()
+```
+

@@ -1,0 +1,57 @@
+---
+title: "Integrated HB13hpf DEAB_WT DEgenes WT vs DEAB R Notebook"
+output: 
+  html_notebook:
+    toc: TRUE
+    toc_depth: 3
+    toc_float: TRUE
+---
+
+# 1. libraries and functions
+```{r, results=F}
+suppressPackageStartupMessages({
+  library(Seurat)
+  library(org.Dr.eg.db)
+  library(BSgenome.Drerio.UCSC.danRer11)
+  library(Signac)
+  library(knitr)
+  library(kableExtra)
+  library(dplyr)
+  library(ggplot2)
+  library(ggsci)
+})
+options(future.globals.maxSize = 4000 * 1024^2)
+```
+
+```{r}
+mypal <- pal_igv(palette = "default",alpha = 1)(50)
+```
+
+# 2. Read data
+
+```{r}
+neural <- readRDS(file = "RDSfiles/HB13.WT.DEAB.neural.refMap.int.RDS")
+```
+
+```{r}
+DimPlot(neural, reduction = "ref.umap", group.by =  "predicted.Clusters", split.by = "orig.ident") + scale_color_igv()
+```
+
+
+```{r, fig.width=5, fig.height=5}
+DefaultAssay(neural) <- "SCT"
+for(cluster in levels(neural)){
+  try({
+    neural.subset <- subset(neural, idents = cluster)
+    Idents(neural.subset) <- "orig.ident"
+    markers <- FindMarkers(neural.subset, ident.1 = "WT", ident.2 = "DEAB", recorrect_umi = FALSE)
+    write.table(markers, file = paste0("../results/WTvsDEAB/WTvsDEAB_",cluster,"_markers.txt"), sep = "\t", quote = FALSE, col.names = NA)
+  })
+}
+```
+
+
+```{r}
+sessionInfo()
+```
+
