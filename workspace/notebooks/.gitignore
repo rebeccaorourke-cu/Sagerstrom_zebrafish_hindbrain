@@ -8,3 +8,7 @@ HB16hpf_dendogram.Rmd
 HB16hpf_dendogram.nb.html
 RFP
 Pseudotime
+04a_RefMapping_DEAB_to_WT_neural.nb.html
+04b_HB13hpf_DEAB_WT_neural_RNA-seq.nb.html
+04c_HB13hpf_DEAB_WT_neural_ATAC_chromVar_motifs.nb.html
+04d_DEgenes_WTvsDEAB.nb.html
