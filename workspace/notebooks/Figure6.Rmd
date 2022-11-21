@@ -91,8 +91,40 @@ cellcounts <- as.data.frame(table(seurat$intClusters, seurat$orig.ident)) %>%
   tidyr::pivot_wider(names_from = Var2, values_from = Freq) %>%
   rename(Cluster = Var1)
 cellcounts
-write.table(cellcounts, file = "../results/DataS6_intCluster_cellcounts.txt", sep = "\t", quote = FALSE, col.names = NA)
+#write.table(cellcounts, file = "../results/DataS6_intCluster_cellcounts.txt", sep = "\t", quote = FALSE, col.names = NA)
 ```
+
+```{r}
+cellcounts.10 <- as.data.frame(table(seurat$intClusters[seurat$orig.ident == "HB10hpf"], seurat$Clusters[seurat$orig.ident == "HB10hpf"])) %>%
+  #dplyr::filter(Var1 %in% c("r3.1","r5.1","r5.2"))
+  tidyr::pivot_wider(names_from = Var2, values_from = Freq) %>%
+  rename(Cluster = Var1)
+cellcounts.10
+```
+
+```{r}
+cellcounts.13 <- as.data.frame(table(seurat$intClusters[seurat$orig.ident == "HB13hpf"], seurat$Clusters[seurat$orig.ident == "HB13hpf"])) %>%
+  #dplyr::filter(Var1 %in% c("r3.1","r5.1","r5.2"))
+  tidyr::pivot_wider(names_from = Var2, values_from = Freq) %>%
+  rename(Cluster = Var1)
+cellcounts.13
+```
+
+```{r}
+cellcounts.16 <- as.data.frame(table(seurat$intClusters[seurat$orig.ident == "HB16hpf"], seurat$Clusters[seurat$orig.ident == "HB16hpf"])) %>%
+  #dplyr::filter(Var1 %in% c("r3.1","r5.1","r5.2"))
+  tidyr::pivot_wider(names_from = Var2, values_from = Freq) %>%
+  rename(Cluster = Var1)
+cellcounts.16
+```
+
+```{r}
+cellcounts.all <- cbind(cellcounts, cellcounts.10, cellcounts.13, cellcounts.16)
+cellcounts.all
+write.table(cellcounts.all, file = "../results/DataS6_intCluster_cellcounts.txt", sep = "\t", quote = FALSE, col.names = NA)
+```
+
+
 
 ```{r}
 genes1 <- FeaturePlot(seurat, features = c("zic2b","ntn1a"), reduction = "wnn.umap", max.cutoff = 2, ncol = 1)

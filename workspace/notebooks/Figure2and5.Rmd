@@ -103,8 +103,11 @@ dotPlot
 ```
 
 ## 5.2 heatmap
-```{r heatmap, fig.height=20, fig.width=12}
-heatmapPlot <- DoHeatmap(seurat, features = unique(top5.pval$gene), group.colors = mypal, size = 5, angle = 90) + guides(color = FALSE)
+```{r heatmap, fig.height=7, fig.width=7}
+heatmapPlot <- DoHeatmap(seurat, features = unique(top5.pval$gene), group.colors = mypal, 
+                         size = 5, angle = 45) + 
+  guides(color = FALSE) +
+  theme(axis.text = element_blank())
 heatmapPlot
 ggsave(filename = "../results/Fig5_HB16hpf_heatmapPlot.png", plot = heatmapPlot) ## heatmap included in Fig5 not Fig2
 ```
@@ -119,9 +122,8 @@ p
 ```
 
 ```{r, fig.height=7, fig.width=7}
-data.tree <- Tool(object = seurat, slot = "BuildClusterTree")
-png(filename = "../results/Fig5_HB16hpf_clustertree_unrooted_vrs1.pdf")
-p1 <- ape::plot.phylo(x = data.tree,  use.edge.length = FALSE, type = "u", 
+pdf(file = "../results/Fig5_HB16hpf_clustertree_unrooted_vrs1.pdf")
+p1 <- ape::plot.phylo(x = data.tree,  use.edge.length = FALSE, cex = 0.8, type = "u", 
                       align.tip.label = TRUE, label.offset = 0.5, lab4ut = "axial")
 p1
 dev.off()

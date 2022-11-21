@@ -75,7 +75,7 @@ seurat <- RenameIdents(seurat,
                        "30" = "Kidney")
 umapPlot <- DimPlot(seurat, reduction = "wnn.umap") + scale_color_igv()
 umapPlot
-ggsave(filename = "../results/FigureS3_HB13hpf_umapPlot.png", plot = umapPlot)
+#ggsave(filename = "../results/FigureS3_HB13hpf_umapPlot.png", plot = umapPlot)
 ```
 
 # 4. Find DE genes
@@ -94,14 +94,14 @@ top5.pval
 ```{r dotplot, fig.width=25, fig.height=7}
 dotPlot <- DotPlot(seurat, features = unique(top5.pval$gene)) + RotatedAxis()
 dotPlot
-ggsave(filename = "../results/FigureS3_HB13hpf_dotPlot.png", plot = dotPlot)
+#ggsave(filename = "../results/FigureS3_HB13hpf_dotPlot.png", plot = dotPlot)
 ```
 
 ## 5.2 heatmap
 ```{r heatmap, fig.height=20, fig.width=10}
 heatmapPlot <- DoHeatmap(seurat, features = unique(top5.pval$gene), group.colors = mypal, size = 5, angle = 90) + guides(color = FALSE)
 heatmapPlot
-ggsave(filename = "../results/FigureS3_HB13hpf_heatmapPlot.png", plot = heatmapPlot)
+#ggsave(filename = "../results/FigureS3_HB13hpf_heatmapPlot.png", plot = heatmapPlot)
 ```
 
 ## 5.3 combine umap, dotplot and heatmap

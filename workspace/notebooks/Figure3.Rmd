@@ -71,9 +71,9 @@ seurat <- RenameIdents(seurat,
                        "21" = "HB.3",
                        "22" = "FB & eye.7",
                        "23" = "FB & eye.8")
-levels(seurat) <- c("SC.1","SC.2","SC.3","CHB.1","CHB.2","CHB.3","NC.1","NC.2","HB.1","HB.2","HB.3",
+levels(seurat) <- rev(c("SC.1","SC.2","SC.3","CHB.1","CHB.2","CHB.3","NC.1","NC.2","HB.1","HB.2","HB.3",
                     "MHB.1","MHB.2","MHB.3","MB","FB","FB & eye.1","FB &  eye.2","FB & eye.3",
-                    "FB & eye.4","FB & eye.5","FB & eye.6","FB & eye.7","FB & eye.8")
+                    "FB & eye.4","FB & eye.5","FB & eye.6","FB & eye.7","FB & eye.8"))
 umapPlot <- DimPlot(seurat, reduction = "wnn.umap", pt.size = 3) + scale_color_igv() + guides(color = guide_legend(override.aes = list(size=4), ncol=1) )
 umapPlot
 seurat$Clusters <- Idents(seurat)
@@ -110,27 +110,6 @@ heatmapPlot
 #ggsave(filename = "../results/Fig3_HB10hpf_heatmapPlot.png", plot = heatmapPlot)
 ```
 
-## 5.3 combine umap, dotplot and heatmap
-```{r combined, fig.height=15, fig.width=20}
-# combined <- (((umapPlot + 
-#       theme(legend.text = element_text(size = 20))) |
-#      (heatmapPlot +
-#         theme(axis.text = element_blank()))) / 
-#     (dotPlot + 
-#        theme(axis.text.x = element_text(size = 10),
-#              axis.text.y = element_text(size = 12),
-#              legend.position = "bottom"))) +
-#     plot_layout(heights = c(2.1,1))
-# combined
-# ggsave(filename = "../results/Fig3_HB10hpf_combinedPlot.png", plot = combined)
-```
-
-## 5.4 Gene Expression and violin plots
-```{r, fig.width=7, fig.height=3}
-#genes1 <- FeaturePlot(seurat, features = c("sox3","neurod4"), reduction = "wnn.umap", keep.scale = "all")  
-#genes1
-#ggsave(filename = "../results/Fig3_HB10hpf_genes1_scaledToMax.png", plot = genes1)
-```
 
 ```{r, fig.width=7, fig.height=3}
 genes1 <- FeaturePlot(seurat, features = c("sox3","neurod4"), reduction = "wnn.umap", max.cutoff = 1)  
@@ -140,24 +119,6 @@ genes1
 
 ```{r}
 genelist <- c("vgll3","egr2b","mafba","crabp2a","cyp26b1","cyp26c1","ppp1r14ab","dusp2")
-```
-
-```{r, fig.width=10, fig.height=10}
-# genes2 <- FeaturePlot(seurat, features = genelist, reduction = "wnn.umap", keep.scale = "all")  
-# genes2
-# ggsave(filename = "../results/Fig3_HB10hpf_genes2_scaledToMax.png", plot = genes2)
-```
-
-```{r, fig.width=10, fig.height=10}
-# genes2 <- FeaturePlot(seurat, features = genelist, reduction = "wnn.umap", max.cutoff = 1)  
-# genes2
-# ggsave(filename = "../results/Fig3_HB10hpf_genes2_scaledToMin.png", plot = genes2)
-```
-
-```{r, fig.width=15, fig.height=10}
-# violinPlot <- VlnPlot(seurat, features = genelist, same.y.lims = TRUE)
-# violinPlot
-# ggsave(filename = "../results/Fig3_HB10hpf_violinPlot.png", plot = violinPlot)
 ```
 
 ```{r}
@@ -188,14 +149,6 @@ seurat <- RunChromVAR(
 motif.names <- c("EGR2","TEAD1","PKNOX1","MAF","HNF1B","PBX1")
 motifs <- c("MA0472.2","MA0090.3","MA0782.2","MA1520.1","MA0153.2","MA0070.1")
 names(motifs) <- motif.names
-```
-
-```{r}
-# motifPlots <- MotifPlot(
-#     object = seurat,
-#     motifs = motifs,
-#     assay = 'peaks') 
-# motifPlots
 ```
 
 ```{r}
