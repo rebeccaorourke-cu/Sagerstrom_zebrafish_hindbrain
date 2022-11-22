@@ -9,7 +9,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 # 1 Libraries
-```{r, results=F}
+```{r libraries, results=F}
 suppressPackageStartupMessages({
   library(Seurat)
   library(org.Dr.eg.db)
@@ -36,14 +36,14 @@ mypal <- pal_igv(palette = "default",alpha = 1)(35)
 ```
 
 # 2. Read data
-```{r}
+```{r readdata}
 seurat <- readRDS(file = "RDSfiles/int.neural.3WT.subset.RDS")
 DefaultAssay(seurat) <- "SCT"
 Idents(seurat) <- "intClusters"
 DimPlot(seurat, reduction = "wnn.umap", label = T, repel = T) + scale_color_igv()
 ```
 
-```{r, fig.width=10, fig.height=7}
+```{r rename, fig.width=10, fig.height=7}
 Idents(seurat) <- "intClusters"
 levels(seurat) <- c("MB.1","MB.2","MB.3","MHB.1","MHB.2","MHB.3","MHB.4","MHB.5","MHB.6","Neurog","r1","r2","r1&r2.1","r1&r2.2","r3.1",
                     "r4.1","r4.2","r5.1","r5.2","r6.1","r6.2","HB","CaudHB.1","CaudHB.2","CaudHB.3","CaudHB.4","SC.1","SC.2","SC.3","SC.4",
@@ -53,7 +53,7 @@ umapPlot <- DimPlot(seurat, reduction = "wnn.umap", pt.size = 3) + scale_color_i
 umapPlot
 ```
 
-```{r, fig.width=5, fig.height=7}
+```{r highlightcells, fig.width=5, fig.height=7}
 seurat$highlight <- as.character(seurat$Clusters)
 seurat$highlight[seurat$highlight == "r3" & seurat$orig.ident == "HB13hpf"] <- "HB13hpf r3"
 seurat$highlight[seurat$highlight == "r3" & seurat$orig.ident == "HB16hpf"] <- "HB16hpf r3"
@@ -84,7 +84,7 @@ highlight_panel <- (p1 + p2) / (p3 + p4) / (p5 + p6)
 highlight_panel
 ```
 
-```{r}
+```{r cellcount}
 Idents(seurat) <- "intClusters"
 cellcounts <- as.data.frame(table(seurat$intClusters, seurat$orig.ident)) %>%
   #dplyr::filter(Var1 %in% c("r3.1","r5.1","r5.2"))
@@ -94,7 +94,7 @@ cellcounts
 #write.table(cellcounts, file = "../results/DataS6_intCluster_cellcounts.txt", sep = "\t", quote = FALSE, col.names = NA)
 ```
 
-```{r}
+```{r cellcount.10}
 cellcounts.10 <- as.data.frame(table(seurat$intClusters[seurat$orig.ident == "HB10hpf"], seurat$Clusters[seurat$orig.ident == "HB10hpf"])) %>%
   #dplyr::filter(Var1 %in% c("r3.1","r5.1","r5.2"))
   tidyr::pivot_wider(names_from = Var2, values_from = Freq) %>%
@@ -102,7 +102,7 @@ cellcounts.10 <- as.data.frame(table(seurat$intClusters[seurat$orig.ident == "HB
 cellcounts.10
 ```
 
-```{r}
+```{r cellcount.13}
 cellcounts.13 <- as.data.frame(table(seurat$intClusters[seurat$orig.ident == "HB13hpf"], seurat$Clusters[seurat$orig.ident == "HB13hpf"])) %>%
   #dplyr::filter(Var1 %in% c("r3.1","r5.1","r5.2"))
   tidyr::pivot_wider(names_from = Var2, values_from = Freq) %>%
@@ -110,7 +110,7 @@ cellcounts.13 <- as.data.frame(table(seurat$intClusters[seurat$orig.ident == "HB
 cellcounts.13
 ```
 
-```{r}
+```{r cellcount.16}
 cellcounts.16 <- as.data.frame(table(seurat$intClusters[seurat$orig.ident == "HB16hpf"], seurat$Clusters[seurat$orig.ident == "HB16hpf"])) %>%
   #dplyr::filter(Var1 %in% c("r3.1","r5.1","r5.2"))
   tidyr::pivot_wider(names_from = Var2, values_from = Freq) %>%
@@ -118,7 +118,7 @@ cellcounts.16 <- as.data.frame(table(seurat$intClusters[seurat$orig.ident == "HB
 cellcounts.16
 ```
 
-```{r}
+```{r cellcount.all}
 cellcounts.all <- cbind(cellcounts, cellcounts.10, cellcounts.13, cellcounts.16)
 cellcounts.all
 write.table(cellcounts.all, file = "../results/DataS6_intCluster_cellcounts.txt", sep = "\t", quote = FALSE, col.names = NA)
@@ -126,7 +126,7 @@ write.table(cellcounts.all, file = "../results/DataS6_intCluster_cellcounts.txt"
 
 
 
-```{r}
+```{r featureplot}
 genes1 <- FeaturePlot(seurat, features = c("zic2b","ntn1a"), reduction = "wnn.umap", max.cutoff = 2, ncol = 1)
 genes1
 ```
@@ -138,21 +138,21 @@ The subset has no @graphs due to the nature of removing some of the cells and ho
 
 Not saving this seurat object so UMAP of int3WT.neural.subset will remain the same as it has been.
 
-```{r}
+```{r runUMAP}
 seurat <- FindMultiModalNeighbors(seurat, reduction.list = list("pca", "harmony"), dims.list = list(1:50, 2:50))
 seurat <- RunUMAP(seurat, nn.name = "weighted.nn", reduction.name = "wnn.umap", reduction.key = "wnnUMAP_", assay = "RNA")
 DimPlot(seurat, reduction = "wnn.umap") + scale_color_igv()
 ```
 
-```{r}
+```{r buildclustertree}
 seurat <- BuildClusterTree(seurat, graph = "wsnn")
 ```
 
-```{r, fig.width=5, fig.height=3}
+```{r plotclustertree, fig.width=5, fig.height=3}
 PlotClusterTree(seurat,direction = "rightwards")
 ```
 
-```{r, fig.height=7, fig.width=10}
+```{r unrooted_vrs1, fig.height=7, fig.width=10}
 data.tree <- Tool(object = seurat, slot = "BuildClusterTree")
 pdf(file = "../results/Fig6_int3WT_clustertree_unrooted_vrs1.pdf")
 ape::plot.phylo(x = data.tree,  use.edge.length = FALSE, cex = 0.5, type = "u", 
@@ -160,7 +160,7 @@ ape::plot.phylo(x = data.tree,  use.edge.length = FALSE, cex = 0.5, type = "u",
 dev.off()
 ```
 
-```{r, fig.height=7, fig.width=10}
+```{r unrooted_vrs2, fig.height=7, fig.width=10}
 pdf(file = "../results/Fig6_int3WT_clustertree_unrooted_vrs2.pdf")
 ape::plot.phylo(x = data.tree,  use.edge.length = FALSE, cex = 0.5, type = "u")
 dev.off()
@@ -170,26 +170,26 @@ dev.off()
 
 Since the bar plots involve various subsets of the dataset, to prevent them from being mixed with each other, they will each be generated in separate R scripts and the resulting plots read into this script for the final figure.
 
-```{r}
+```{r barplots1}
 r2r3gene_barplots <- readRDS(file = "../results/r2_r3_gene_barplots.RDS")
 r2r3gene_barplots
 ```
-```{r}
+```{r barplots2}
 vgll3_egr2b_barplot <- readRDS(file = "../results/vgll3_egr2b_barplot.RDS")
 vgll3_egr2b_barplot
 ```
-```{r}
+```{r barplots3}
 vgll3_nab1b_barplot <- readRDS(file = "../results/vgll3_nab1b_barplot.RDS")
 vgll3_nab1b_barplot
 ```
 
-```{r}
+```{r barplots4}
 vgll3_egr2b_nab1b_barplot <- readRDS(file = "../results/vgll3_egr2b_nab1b_barplot.RDS")
 vgll3_egr2b_nab1b_barplot
 ```
 
 
-```{r, fig.width=14, fig.height=21}
+```{r combined, fig.width=14, fig.height=21}
 combined <- (((umapPlot + 
                  (genes1 + plot_layout(guides = "collect"))
                ) + plot_layout(widths = c(3,1))
@@ -222,7 +222,7 @@ ggsave(filename = "../results/Fig6_integrated_combinedPlot.png", plot = combined
 
 
 
-```{r}
+```{r sessionInfo}
 sessionInfo()
 ```
 

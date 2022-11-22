@@ -9,7 +9,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 # 1 libraries
-```{r, results=F}
+```{r libaries, results=F}
 suppressPackageStartupMessages({
   library(Seurat)
   library(Signac)
@@ -19,8 +19,6 @@ suppressPackageStartupMessages({
   library(ggplot2)
   library(ggalluvial)
   library(ggsci)
-  library(tidyr)
-  library(tidyverse)
   library(patchwork)
   library(dittoSeq)
   library(ComplexHeatmap)
@@ -35,7 +33,7 @@ options(future.globals.maxSize = 4000 * 1024^2)
 
 # 2 read data
 
-```{r}
+```{r readdata}
 HB10hpf <- readRDS(file = "RDSfiles/HB10hpf_neural.RDS")
 HB13hpf <- readRDS(file = "RDSfiles/HB13hpf_neural.RDS")
 HB16hpf <- readRDS(file = "RDSfiles/HB16hpf_neural.RDS")
@@ -44,7 +42,7 @@ HB16hpf <- readRDS(file = "RDSfiles/HB16hpf_neural.RDS")
 # 3. Expression of vgll3 and egr2b by cell in r1, r2 or r3
 
 ## 3.1 HB.1
-```{r, echo=FALSE}
+```{r hb1subset, echo=FALSE}
 HB.1cells <- subset(HB10hpf, idents = "HB.1", features = c("vgll3","egr2b"))
 df.HB1 <- as.data.frame(t(GetAssayData(HB.1cells, slot = "data", assay = "SCT")))
 
@@ -66,7 +64,7 @@ data4
 
 ## 3.1 r1
 ### 3.1.2 HB13hpf
-```{r, echo=FALSE}
+```{r r113subset, echo=FALSE}
 r1cells.13 <- subset(HB13hpf, idents = "r1", features = c("vgll3","egr2b"))
 df.r1.13 <- as.data.frame(t(GetAssayData(r1cells.13, slot = "data", assay = "SCT")))
 
@@ -78,7 +76,7 @@ r1.cellcount.13 <- nrow(df.r1.13)
 ```
 
 ### 3.1.2 HB16hpf
-```{r}
+```{r r116subset}
 r1cells.16 <- subset(HB16hpf, idents = "r1", features = c("vgll3","egr2b"))
 df.r1.16 <- as.data.frame(t(GetAssayData(r1cells.16, slot = "data", assay = "SCT")))
 
@@ -90,7 +88,7 @@ r1.cellcount.16 <- nrow(df.r1.16)
 ```
 
 ### 3.1.3 r1 cellcount df
-```{r}
+```{r r1cellcount}
 # create a dataset
 rhombomere <- c("HB13hpf","HB13hpf","HB13hpf","HB13hpf",
                 "HB16hpf","HB16hpf","HB16hpf","HB16hpf")
@@ -107,7 +105,7 @@ data1
 
 ## 3.2 r2
 ### 3.2.1 HB13hpf
-```{r, echo=FALSE}
+```{r r213subset, echo=FALSE}
 r2cells.13 <- subset(HB13hpf, idents = "r2", features = c("vgll3","egr2b"))
 df.r2.13 <- as.data.frame(t(GetAssayData(r2cells.13, slot = "data", assay = "SCT")))
 
@@ -119,7 +117,7 @@ r2.cellcount.13 <- nrow(df.r2.13)
 ```
 
 ### 3.2.2. HB16hpf
-```{r}
+```{r r216subset}
 r2cells.16 <- subset(HB16hpf, idents = "r2", features = c("vgll3","egr2b"))
 df.r2.16 <- as.data.frame(t(GetAssayData(r2cells.16, slot = "data", assay = "SCT")))
 
@@ -131,7 +129,7 @@ r2.cellcount.16 <- nrow(df.r2.16)
 ```
 
 ### 3.2.3 r2 cellcount df
-```{r}
+```{r r2cellcount}
 # create a dataset
 rhombomere <- c("HB13hpf","HB13hpf","HB13hpf","HB13hpf",
                 "HB16hpf","HB16hpf","HB16hpf","HB16hpf")
@@ -149,7 +147,7 @@ data2
 
 ## 3.3 r3
 ### 3.3.1 HB13hpf
-```{r, echo=FALSE}
+```{r r313subset, echo=FALSE}
 r3cells.13 <- subset(HB13hpf, idents = "r3", features = c("vgll3","egr2b"))
 df.r3.13 <- as.data.frame(t(GetAssayData(r3cells.13, slot = "data", assay = "SCT")))
 
@@ -161,7 +159,7 @@ r3.cellcount.13 <- nrow(df.r3.13)
 ```
 
 ## 3.3.2 HB16hpf
-```{r}
+```{r r316subset}
 r3cells.16 <- subset(HB16hpf, idents = "r3", features = c("vgll3","egr2b"))
 df.r3.16 <- as.data.frame(t(GetAssayData(r3cells.16, slot = "data", assay = "SCT")))
 
@@ -173,7 +171,7 @@ r3.cellcount.16 <- nrow(df.r3.16)
 ```
 
 ### 3.3.3 r3 cellcount df
-```{r}
+```{r r3cellcount}
 # create a dataset
 rhombomere <- c("HB13hpf","HB13hpf","HB13hpf","HB13hpf",
                 "HB16hpf","HB16hpf","HB16hpf","HB16hpf")
@@ -189,7 +187,7 @@ data3
 ```
 # 4 barplot cellcount expressing vgll3 or egr2b
 
-```{r, fig.width=7, fig.height=3}
+```{r barplot, fig.width=7, fig.height=3}
 p5 <- ggplot(data4, aes(fill=vgll3.egr2b, y=count, x=rhombomere)) + 
   geom_bar(stat="identity") + ylim(0,60) +
   geom_text(data = subset(data4, count !=0),aes(label = count), position = position_stack(vjust = 0.5)) +
@@ -213,12 +211,12 @@ p8 <- ggplot(data3, aes(fill=vgll3.egr2b, y=count, x=rhombomere)) +
 vgll3_egr2b_barplot <- wrap_plots(list(p5,p6,p7,p8), nrow = 1, guides = "collect") + guides(fill=guide_legend(title="vgll3/egr2b"))
 vgll3_egr2b_barplot
 ```
-```{r}
+```{r save}
 saveRDS(vgll3_egr2b_barplot, file = "../results/vgll3_egr2b_barplot.RDS")
 ```
 
 
-```{r}
+```{r sessioninfo}
 sessionInfo()
 ```
 

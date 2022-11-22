@@ -117,16 +117,16 @@ ggsave(filename = "../results/Fig5_HB13hpf_heatmapPlot.png", plot = heatmapPlot)
 ```
 
 # Build Cluster Tree
-```{r}
+```{r buildclustertree}
 seurat <- BuildClusterTree(seurat, graph = "wsnn")
 ```
 
-```{r, fig.width=5, fig.height=3}
+```{r plotclustertree, fig.width=5, fig.height=3}
 p <- PlotClusterTree(seurat,direction = "rightwards")
 p
 ```
 
-```{r, fig.height=7, fig.width=7}
+```{r unrooted_vrs1, fig.height=7, fig.width=7}
 data.tree <- Tool(object = seurat, slot = "BuildClusterTree")
 pdf(file = "../results/Fig5_HB13hpf_clustertree_unrooted_vrs1.pdf")
 p1 <- ape::plot.phylo(x = data.tree,  use.edge.length = FALSE, cex = 0.8, type = "u", 
@@ -134,7 +134,7 @@ p1 <- ape::plot.phylo(x = data.tree,  use.edge.length = FALSE, cex = 0.8, type =
 p1
 dev.off()
 ```
-```{r, fig.height=7, fig.width=7}
+```{r unrooted_vrs2, fig.height=7, fig.width=7}
 pdf(file = "../results/Fig5_HB13hpf_clustertree_unrooted_vrs2.pdf")
 p1 <- ape::plot.phylo(x = data.tree,  use.edge.length = FALSE, cex = 0.8, type = "u", 
                       align.tip.label = TRUE, label.offset = 0.5)
@@ -163,39 +163,23 @@ dev.off()
 #ggsave(filename = "../results/Fig1_HB13hpf_genes1_scaledToMax.png", plot = genes1)
 ```
 
-```{r, fig.width=7, fig.height=3}
+```{r featureplot, fig.width=7, fig.height=3}
 genes1 <- FeaturePlot(seurat, features = c("sox3","neurod4"), reduction = "wnn.umap", max.cutoff = 1)  
 genes1
 #ggsave(filename = "../results/Fig1_HB13hpf_genes1_scaledToMin.png", plot = genes1)
 ```
 
-```{r}
+```{r genelist}
 genelist <- c("egr2b","mafba","sema3ab","fgf3","cyp26b1","vgll3","tgfbr2b","irx1b")
 ```
 
-```{r, fig.width=10, fig.height=10}
-# genes2 <- FeaturePlot(seurat, features = genelist, reduction = "wnn.umap", keep.scale = "all")  
-# genes2
-# ggsave(filename = "../results/Fig1_HB13hpf_genes2_scaledToMax.png", plot = genes2)
-```
 
-```{r, fig.width=10, fig.height=10}
-#genes2 <- FeaturePlot(seurat, features = genelist, reduction = "wnn.umap", max.cutoff = 1)  
-#genes2
-#ggsave(filename = "../results/Fig1_HB13hpf_genes2_scaledToMin.png", plot = genes2)
-```
-
-```{r, fig.width=15, fig.height=10}
-#violinPlot <- VlnPlot(seurat, features = genelist, same.y.lims = TRUE)
-#violinPlot
-#ggsave(filename = "../results/Fig1_HB13hpf_violinPlot.png", plot = violinPlot)
-```
-```{r}
+```{r featureplot2}
 genes2 <- FeaturePlot(seurat, features = genelist, reduction = "wnn.umap", max.cutoff = 1, combine = FALSE)
 violinPlot <- VlnPlot(seurat, features = genelist, same.y.lims = TRUE, combine = FALSE)
 ```
 
-```{r, fig.width=17, fig.height=13}
+```{r geneplusvln, fig.width=17, fig.height=13}
 genePlusViolin <- genes2[[1]] + violinPlot[[1]] + NoLegend() + genes2[[2]] + violinPlot[[2]] + NoLegend() + 
   genes2[[3]] + violinPlot[[3]] + NoLegend() + genes2[[4]] + violinPlot[[4]] + NoLegend() +
   genes2[[5]] + violinPlot[[5]] + NoLegend() + genes2[[6]] + violinPlot[[6]] + NoLegend() +
@@ -205,20 +189,14 @@ genePlusViolin
 #ggsave(filename = "../results/Fig1_HB13hpf_genePlusViolin.png", plot = genePlusViolin)
 ```
 
-```{r, fig.width=14, fig.height=3}
-# genes3 <- FeaturePlot(seurat, features = c("casz1","zic2a","ntn1a","sp8b"), reduction = "wnn.umap", keep.scale = "all", ncol = 4)  
-# genes3
-#ggsave(filename = "../results/Fig1_HB13hpf_genes3_scaledToMax.png", plot = genes3)
-```
 
-```{r, fig.width=14, fig.height=3}
+```{r featureplot3, fig.width=14, fig.height=3}
 genes3 <- FeaturePlot(seurat, features = c("casz1","zic2a","ntn1a","sp8b"), reduction = "wnn.umap", ncol = 4, max.cutoff = 1) #&
   #scale_color_gradient(low = "gray", high = "blue", limits = c(0,2.4)) 
 genes3
-#ggsave(filename = "../results/Fig1_HB13hpf_genes3_scaledTo2.4.png", plot = genes3)
 ```
 
-```{r combined, fig.height=25, fig.width=25}
+```{r combined2, fig.height=25, fig.width=25}
 combined <- 
   (((umapPlot +
       theme(legend.text = element_text(size = 20))) /

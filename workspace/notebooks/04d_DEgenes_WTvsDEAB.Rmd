@@ -19,6 +19,7 @@ suppressPackageStartupMessages({
   library(dplyr)
   library(ggplot2)
   library(ggsci)
+  library(EnhancedVolcano)
 })
 options(future.globals.maxSize = 4000 * 1024^2)
 ```
@@ -50,6 +51,27 @@ for(cluster in levels(neural)){
 }
 ```
 
+```{r, fig.width=18, fig.height=15}
+DefaultAssay(neural) <- "SCT"
+plotlist <- list()
+markerslist <- list()
+for(cluster in c("r1","r1 & r2","r2","r3","r4")){
+  try({
+    neural.subset <- subset(neural, idents = cluster)
+    Idents(neural.subset) <- "orig.ident"
+    markerslist[[cluster]] <- FindMarkers(neural.subset, ident.1 = "DEAB", ident.2 = "WT", recorrect_umi = FALSE)
+    p <- EnhancedVolcano(markerslist[[cluster]],
+                         lab = rownames(markerslist[[cluster]]),
+                         x = "avg_log2FC",
+                         y = "p_val_adj",
+                         title = paste(cluster, "Volcano plot"))
+    plotlist[[cluster]] <- p
+  })
+}
+vol_plots <- wrap_plots(plotlist)
+vol_plots
+ggsave(filename = "../results/FigS5_DEABvsWT_volcano.png",plot = vol_plots)
+```
 
 ```{r}
 sessionInfo()

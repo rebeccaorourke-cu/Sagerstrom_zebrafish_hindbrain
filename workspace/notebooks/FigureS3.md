@@ -45,7 +45,11 @@ suppressPackageStartupMessages({
 
     ## Warning: package 'rtracklayer' was built under R version 4.1.1
 
+    ## Warning: package 'ggplot2' was built under R version 4.1.2
+
     ## Warning: package 'limma' was built under R version 4.1.3
+
+    ## Warning: package 'patchwork' was built under R version 4.1.2
 
     ## Warning: package 'TFBSTools' was built under R version 4.1.1
 
@@ -113,10 +117,8 @@ umapPlot
 ![](FigureS3_files/figure-gfm/RenameIdents-1.png)<!-- -->
 
 ``` r
-ggsave(filename = "../results/FigureS3_HB13hpf_umapPlot.png", plot = umapPlot)
+#ggsave(filename = "../results/FigureS3_HB13hpf_umapPlot.png", plot = umapPlot)
 ```
-
-    ## Saving 10 x 5 in image
 
 # 4. Find DE genes
 
@@ -132,18 +134,18 @@ top5.pval
 
     ## # A tibble: 155 × 7
     ## # Groups:   cluster [31]
-    ##       p_val avg_log2FC pct.1 pct.2 p_val_adj cluster    gene   
-    ##       <dbl>      <dbl> <dbl> <dbl>     <dbl> <fct>      <chr>  
-    ##  1 3.20e-52      1.02  0.538 0.093  6.51e-48 r1 r2 & r4 cyp26c1
-    ##  2 5.49e-51      1.08  0.826 0.249  1.12e-46 r1 r2 & r4 plp1a  
-    ##  3 1.69e-41      0.872 0.439 0.075  3.43e-37 r1 r2 & r4 skap2  
-    ##  4 1.13e-39      0.930 0.705 0.205  2.31e-35 r1 r2 & r4 lamb2  
-    ##  5 9.22e-36      1.11  0.742 0.271  1.87e-31 r1 r2 & r4 nr2f2  
-    ##  6 1.28e-81      1.81  0.66  0.078  2.61e-77 FB & MB    stra6  
-    ##  7 1.00e-39      0.808 0.396 0.054  2.04e-35 FB & MB    kif5c  
-    ##  8 8.03e-35      0.980 0.425 0.074  1.63e-30 FB & MB    afap1l2
-    ##  9 6.41e-33      0.765 0.425 0.078  1.30e-28 FB & MB    sall3b 
-    ## 10 1.10e-32      0.273 0.189 0.012  2.24e-28 FB & MB    dmbx1b 
+    ##       p_val avg_log2FC pct.1 pct.2 p_val_adj cluster    gene           
+    ##       <dbl>      <dbl> <dbl> <dbl>     <dbl> <fct>      <chr>          
+    ##  1 1.76e-53      1.02  0.541 0.092  3.58e-49 r1 r2 & r4 cyp26c1        
+    ##  2 2.50e-51      1.07  0.827 0.248  5.09e-47 r1 r2 & r4 plp1a          
+    ##  3 6.21e-43      0.889 0.444 0.074  1.26e-38 r1 r2 & r4 skap2          
+    ##  4 2.16e-40      0.936 0.707 0.204  4.40e-36 r1 r2 & r4 lamb2          
+    ##  5 2.07e-35      0.464 0.263 0.029  4.21e-31 r1 r2 & r4 si:dkey-27i16.2
+    ##  6 3.48e-79      1.81  0.651 0.078  7.08e-75 FB & MB    stra6          
+    ##  7 1.00e-39      0.808 0.396 0.054  2.04e-35 FB & MB    kif5c          
+    ##  8 7.58e-35      0.788 0.434 0.078  1.54e-30 FB & MB    sall3b         
+    ##  9 8.03e-35      0.980 0.425 0.074  1.63e-30 FB & MB    afap1l2        
+    ## 10 1.10e-32      0.273 0.189 0.012  2.24e-28 FB & MB    dmbx1b         
     ## # … with 145 more rows
 
 # 5. Plots
@@ -158,10 +160,8 @@ dotPlot
 ![](FigureS3_files/figure-gfm/dotplot-1.png)<!-- -->
 
 ``` r
-ggsave(filename = "../results/FigureS3_HB13hpf_dotPlot.png", plot = dotPlot)
+#ggsave(filename = "../results/FigureS3_HB13hpf_dotPlot.png", plot = dotPlot)
 ```
-
-    ## Saving 25 x 7 in image
 
 ## 5.2 heatmap
 
@@ -169,8 +169,8 @@ ggsave(filename = "../results/FigureS3_HB13hpf_dotPlot.png", plot = dotPlot)
 heatmapPlot <- DoHeatmap(seurat, features = unique(top5.pval$gene), group.colors = mypal, size = 5, angle = 90) + guides(color = FALSE)
 ```
 
-    ## Warning: `guides(<scale> = FALSE)` is deprecated. Please use `guides(<scale> =
-    ## "none")` instead.
+    ## Warning: The `<scale>` argument of `guides()` cannot be `FALSE`. Use "none" instead as
+    ## of ggplot2 3.3.4.
 
 ``` r
 heatmapPlot
@@ -179,10 +179,8 @@ heatmapPlot
 ![](FigureS3_files/figure-gfm/heatmap-1.png)<!-- -->
 
 ``` r
-ggsave(filename = "../results/FigureS3_HB13hpf_heatmapPlot.png", plot = heatmapPlot)
+#ggsave(filename = "../results/FigureS3_HB13hpf_heatmapPlot.png", plot = heatmapPlot)
 ```
-
-    ## Saving 10 x 20 in image
 
 ## 5.3 combine umap, dotplot and heatmap
 
@@ -229,9 +227,9 @@ sessionInfo()
     ## other attached packages:
     ##  [1] harmony_0.1.0                       Rcpp_1.0.7                         
     ##  [3] motifmatchr_1.16.0                  TFBSTools_1.32.0                   
-    ##  [5] patchwork_1.1.1                     JASPAR2020_0.99.10                 
+    ##  [5] patchwork_1.1.2                     JASPAR2020_0.99.10                 
     ##  [7] limma_3.50.3                        ggsci_2.9                          
-    ##  [9] ggplot2_3.3.5                       dplyr_1.0.7                        
+    ##  [9] ggplot2_3.4.0                       dplyr_1.0.7                        
     ## [11] kableExtra_1.3.4                    knitr_1.36                         
     ## [13] Signac_1.2.1                        BSgenome.Drerio.UCSC.danRer11_1.4.2
     ## [15] BSgenome_1.62.0                     rtracklayer_1.54.0                 
@@ -249,9 +247,9 @@ sessionInfo()
     ##   [7] htmlwidgets_1.5.4           grid_4.1.0                 
     ##   [9] docopt_0.7.1                BiocParallel_1.28.0        
     ##  [11] Rtsne_0.15                  munsell_0.5.0              
-    ##  [13] ragg_1.2.2                  codetools_0.2-18           
+    ##  [13] ragg_1.2.4                  codetools_0.2-18           
     ##  [15] ica_1.0-2                   future_1.26.1              
-    ##  [17] miniUI_0.1.1.1              withr_2.4.2                
+    ##  [17] miniUI_0.1.1.1              withr_2.5.0                
     ##  [19] colorspace_2.0-2            highr_0.9                  
     ##  [21] rstudioapi_0.13             ROCR_1.0-11                
     ##  [23] tensor_1.5                  listenv_0.8.0              
@@ -259,16 +257,16 @@ sessionInfo()
     ##  [27] slam_0.1-48                 GenomeInfoDbData_1.2.7     
     ##  [29] polyclip_1.10-0             bit64_4.0.5                
     ##  [31] farver_2.1.0                parallelly_1.32.0          
-    ##  [33] vctrs_0.4.1                 generics_0.1.1             
+    ##  [33] vctrs_0.5.0                 generics_0.1.1             
     ##  [35] xfun_0.27                   lsa_0.73.2                 
     ##  [37] ggseqlogo_0.1               R6_2.5.1                   
     ##  [39] bitops_1.0-7                spatstat.utils_2.2-0       
     ##  [41] cachem_1.0.6                DelayedArray_0.20.0        
     ##  [43] assertthat_0.2.1            promises_1.2.0.1           
-    ##  [45] BiocIO_1.4.0                scales_1.1.1               
+    ##  [45] BiocIO_1.4.0                scales_1.2.1               
     ##  [47] gtable_0.3.0                globals_0.15.1             
     ##  [49] goftest_1.2-3               seqLogo_1.60.0             
-    ##  [51] rlang_1.0.3                 systemfonts_1.0.4          
+    ##  [51] rlang_1.0.6                 systemfonts_1.0.4          
     ##  [53] RcppRoll_0.3.0              splines_4.1.0              
     ##  [55] lazyeval_0.2.2              spatstat.geom_2.3-0        
     ##  [57] yaml_2.2.1                  reshape2_1.4.4             
@@ -296,14 +294,14 @@ sessionInfo()
     ## [101] later_1.3.0                 tidyr_1.1.4                
     ## [103] DBI_1.1.1                   tweenr_1.0.2               
     ## [105] MASS_7.3-54                 readr_2.0.2                
-    ## [107] Matrix_1.3-4                cli_3.3.0                  
+    ## [107] Matrix_1.3-4                cli_3.4.1                  
     ## [109] R.methodsS3_1.8.1           parallel_4.1.0             
     ## [111] igraph_1.2.8                pkgconfig_2.0.3            
     ## [113] TFMPvalue_0.0.8             GenomicAlignments_1.30.0   
     ## [115] plotly_4.10.0               spatstat.sparse_2.0-0      
-    ## [117] xml2_1.3.2                  annotate_1.72.0            
-    ## [119] svglite_2.0.0               DirichletMultinomial_1.36.0
-    ## [121] webshot_0.5.2               rvest_1.0.2                
+    ## [117] xml2_1.3.3                  annotate_1.72.0            
+    ## [119] svglite_2.1.0               DirichletMultinomial_1.36.0
+    ## [121] webshot_0.5.4               rvest_1.0.3                
     ## [123] stringr_1.4.0               digest_0.6.28              
     ## [125] pracma_2.3.3                sctransform_0.3.3          
     ## [127] RcppAnnoy_0.0.19            CNEr_1.30.0                
@@ -312,7 +310,7 @@ sessionInfo()
     ## [133] uwot_0.1.10                 restfulr_0.0.13            
     ## [135] gtools_3.9.2                shiny_1.7.1                
     ## [137] Rsamtools_2.10.0            rjson_0.2.20               
-    ## [139] lifecycle_1.0.1             nlme_3.1-153               
+    ## [139] lifecycle_1.0.3             nlme_3.1-153               
     ## [141] jsonlite_1.7.2              viridisLite_0.4.0          
     ## [143] fansi_0.5.0                 pillar_1.6.4               
     ## [145] lattice_0.20-45             GO.db_3.14.0               

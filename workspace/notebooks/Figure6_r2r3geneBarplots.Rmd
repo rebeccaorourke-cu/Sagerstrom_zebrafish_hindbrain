@@ -9,7 +9,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 # 1 Libraries
-```{r, results=F}
+```{r libraries, results=F}
 suppressPackageStartupMessages({
   library(Seurat)
   library(org.Dr.eg.db)
@@ -37,21 +37,21 @@ mypal <- pal_igv(palette = "default",alpha = 1)(35)
 
 # Read data
 Subsetting the integrated seurat object to obtain HB13hpf r2 or r3 cells fails.  This could likely be fixed with update of Seurat but that would affect UMAP so instead will use individual HB13hpf and HB10hpf Seurat Objects for r2, r3 and HB.1 cells.
-```{r}
+```{r readdata}
 HB10hpf <- readRDS(file = "RDSfiles/HB10hpf_neural.RDS")
 HB13hpf <- readRDS(file = "RDSfiles/HB13hpf_neural.RDS")
 ```
 
 
 # Bar plots cell counts expressing genes
-```{r}
+```{r genelists}
 r2_genes <- c("ptprn2","efnb3b","chl1b","si:ch211-286o17.1","cyp26c1","vgll3","plxna2","ppap2d","zgc:174888","tgfbr2b","crim1",
               "bmpr1ba","cxcl12a","LHFPL6")
 r3_genes <- c("epha4a","sema3fb","egr2b","brinp2","nab2","egr2a","timp2b","myo1cb","nab1b","si:ch211-191i18.2",
               "cbarpb","nlgn4xa","grm4","adprhl2","slc1a6")
 ```
 
-```{r}
+```{r subset}
 Idents(HB13hpf) <- "Clusters"
 HB13.r2.r2cells <- subset(HB13hpf, idents = "r2", features = r2_genes)
 df.HB13.r2.r2 <- as.data.frame(t(GetAssayData(HB13.r2.r2cells, slot = "data", assay = "SCT")))
@@ -71,7 +71,7 @@ df.HB13.r3.r3
 ```
 
 
-```{r}
+```{r r2r213counts}
 HB13.r2.r2counts <- as.data.frame(colSums(df.HB13.r2.r2 > 0)) %>%
   dplyr::rename(r2_count = 1) %>%
   tibble::rownames_to_column(var = "gene") %>%
@@ -81,7 +81,7 @@ HB13.r2.r2counts <- as.data.frame(colSums(df.HB13.r2.r2 > 0)) %>%
 HB13.r2.r2counts
 ```
 
-```{r}
+```{r r3r313counts}
 r2_order <- levels(HB13.r2.r2counts$gene)
 
 HB13.r3.r3counts <- as.data.frame(colSums(df.HB13.r3.r3 > 0)) %>%
@@ -93,7 +93,7 @@ HB13.r3.r3counts <- as.data.frame(colSums(df.HB13.r3.r3 > 0)) %>%
 HB13.r3.r3counts
 ```
 
-```{r}
+```{r r2r313counts}
 r3_order <- levels(HB13.r3.r3counts$gene)
 
 HB13.r2.r3counts <- as.data.frame(colSums(df.HB13.r2.r3 > 0)) %>%
@@ -104,7 +104,7 @@ HB13.r2.r3counts <- as.data.frame(colSums(df.HB13.r2.r3 > 0)) %>%
 HB13.r2.r3counts
 ```
 
-```{r}
+```{r r3r213counts}
 HB13.r3.r2counts <- as.data.frame(colSums(df.HB13.r3.r2 > 0)) %>%
   dplyr::rename(r3_count = 1) %>%
   tibble::rownames_to_column(var = "gene") %>%
@@ -113,7 +113,7 @@ HB13.r3.r2counts <- as.data.frame(colSums(df.HB13.r3.r2 > 0)) %>%
 HB13.r3.r2counts
 ```
 
-```{r}
+```{r barplot1}
 p3 <- ggplot(HB13.r2.r2counts, aes(y=-r2_percent_cells, x=gene)) + 
   geom_bar(stat="identity", fill = mypal[1]) +
   coord_flip() +
@@ -151,7 +151,7 @@ p6 <- ggplot(HB13.r3.r3counts, aes(y=r3_percent_cells, x=gene)) +
 p3 + p4 + p5 + p6 + plot_layout(ncol = 4)
 ```
 
-```{r}
+```{r hb1subset}
 Idents(HB10hpf) <- "Clusters"
 HB.1.r2cells <- subset(HB10hpf, idents = "HB.1", features = r2_genes)
 df.HB1.r2 <- as.data.frame(t(GetAssayData(HB.1.r2cells, slot = "data", assay = "SCT")))
@@ -162,7 +162,7 @@ df.HB1.r3 <- as.data.frame(t(GetAssayData(HB.1.r3cells, slot = "data", assay = "
 df.HB1.r3
 ```
 
-```{r}
+```{r hb1r2counts}
 HB.1.r2counts <- as.data.frame(colSums(df.HB1.r2 > 0)) %>%
   dplyr::rename(HB.1_count = 1) %>%
   tibble::rownames_to_column(var = "gene") %>%
@@ -172,7 +172,7 @@ HB.1.r2counts <- as.data.frame(colSums(df.HB1.r2 > 0)) %>%
 HB.1.r2counts
 ```
 
-```{r}
+```{r hb1r3counts}
 HB.1.r3counts <- as.data.frame(colSums(df.HB1.r3 > 0)) %>%
   dplyr::rename(HB.1_count = 1) %>%
   tibble::rownames_to_column(var = "gene")  %>%
@@ -183,7 +183,7 @@ HB.1.r3counts <- as.data.frame(colSums(df.HB1.r3 > 0)) %>%
 HB.1.r3counts
 ```
 
-```{r}
+```{r barplot2}
 p1 <- ggplot(HB.1.r2counts, aes(y=-HB.1_percent_cells, x=gene)) + 
   geom_bar(stat="identity", fill = mypal[1]) +
   coord_flip() +
@@ -205,13 +205,13 @@ p2 <- ggplot(HB.1.r3counts, aes(y=HB.1_percent_cells, x=gene)) +
 p1 + p2
 ```
 
-```{r}
+```{r combined}
 barplots <- (p1 + p2) / (p3 + p4) / (p5 + p6)
 barplots
 saveRDS(barplots, file = "../results/r2_r3_gene_barplots.RDS")
 ```
 
-```{r}
+```{r sessioninfo}
 sessionInfo()
 ```
 

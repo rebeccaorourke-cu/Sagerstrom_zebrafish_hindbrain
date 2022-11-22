@@ -42,7 +42,7 @@ Idents(HB13hpf) <- "Clusters"
 DimPlot(HB13hpf, reduction = "wnn.umap", label = T, repel = T) + scale_color_igv()
 ```
 
-```{r readData}
+```{r readData2}
 HB16hpf <- readRDS(file = "RDSfiles/HB16hpf_neural.RDS")
 DefaultAssay(HB16hpf) <- "SCT"
 Idents(HB16hpf) <- "Clusters"
@@ -50,7 +50,7 @@ DimPlot(HB16hpf, reduction = "wnn.umap", label = T, repel = T) + scale_color_igv
 ```
 
 # 3. Gene expression UMAPs
-```{r, fig.width=7, fig.height=3}
+```{r featureplot, fig.width=7, fig.height=3}
 HB13_tead1b <- FeaturePlot(HB13hpf, features = "tead1b", reduction = "wnn.umap", max.cutoff = 2)  
 HB13_tead1b
 HB13_tead3b <- FeaturePlot(HB13hpf, features = "tead3b", reduction = "wnn.umap", max.cutoff = 2)  
@@ -61,14 +61,14 @@ HB16_tead3b <- FeaturePlot(HB16hpf, features = "tead3b", reduction = "wnn.umap",
 HB16_tead3b
 ```
 
-```{r}
+```{r gene_exp}
 gene_exp <- plot_spacer() + HB13_tead1b + HB16_tead1b + plot_spacer() + HB13_tead3b + HB16_tead3b + 
   plot_layout(ncol = 6, guides = "collect")
 ```
 
 # 4. Motif and ChromVar plots
 
-```{r}
+```{r runchromvar}
 HB13hpf <- RunChromVAR(
   object = HB13hpf,
   genome = BSgenome.Drerio.UCSC.danRer11,
@@ -76,7 +76,7 @@ HB13hpf <- RunChromVAR(
 )
 ```
 
-```{r}
+```{r runchromvar2}
 HB16hpf <- RunChromVAR(
   object = HB16hpf,
   genome = BSgenome.Drerio.UCSC.danRer11,
@@ -84,13 +84,13 @@ HB16hpf <- RunChromVAR(
 )
 ```
 
-```{r}
+```{r motifs}
 motif.names <- c("EGR2","MAF","PKNOX1","HOXA4","PBX1","TEAD1","NR2F1(var.2)","NR2C2")
 motifs <- c("MA0472.2","MA0117.2","MA0782.2","MA1496.1","MA0070.1","MA0090.3","MA1537.1","MA0504.1")
 names(motifs) <- motif.names
 ```
 
-```{r}
+```{r function}
 GetChromVarPlots <- function(object, motifs){
   DefaultAssay(object) <- "chromvar"
   mylist <- list()
@@ -111,7 +111,7 @@ GetChromVarPlots <- function(object, motifs){
 }
 ```
 
-```{r}
+```{r function2}
 GetChromVarPlotsPlusLegend <- function(object, motifs){
   DefaultAssay(object) <- "chromvar"
   mylist <- list()
@@ -132,18 +132,18 @@ GetChromVarPlotsPlusLegend <- function(object, motifs){
 }
 ```
 
-```{r, fig.width=7, fig.height=5}
+```{r getchromvarplots, fig.width=7, fig.height=5}
 HB13.cv.motif1 <- GetChromVarPlotsPlusLegend(HB13hpf, motifs[1])
 HB13.cv.list <- GetChromVarPlots(HB13hpf, motifs)
 wrap_plots(HB13.cv.list)
 ```
 
-```{r, fig.width=7, fig.height=5}
+```{r getchromvarplots2, fig.width=7, fig.height=5}
 HB16.cv.list <- GetChromVarPlots(HB16hpf, motifs)
 wrap_plots(HB16.cv.list)
 ```
 
-```{r}
+```{r motifplots}
 motif.list <- list()
 for(motif in names(motifs)){
   motif.list[[motif]] <- MotifPlot(
@@ -154,7 +154,7 @@ for(motif in names(motifs)){
 motif.list[[1]]
 ```
 
-```{r, fig.width=15, fig.height=15}
+```{r motifpluschromvar, fig.width=15, fig.height=15}
 motifPlusChromvar <- motif.list[[1]] + HB13.cv.motif1[[1]] + HB16.cv.list[[1]] + 
   motif.list[[2]] + HB13.cv.list[[2]] + HB16.cv.list[[2]] +
   motif.list[[3]] + HB13.cv.list[[3]] + HB16.cv.list[[3]] +
@@ -169,14 +169,14 @@ motifPlusChromvar
 
 # Fig 4 combined plots
 
-```{r, fig.width=15, fig.height=15}
+```{r combined, fig.width=15, fig.height=15}
 combined <- gene_exp / motifPlusChromvar + plot_layout(heights = c(1,5))
 combined
 ggsave(filename = "../results/Fig4_HB13hpf_HB16hpf_combinedPlot.png", plot = combined)
 ```
 
 
-```{r}
+```{r sessioninfo}
 sessionInfo()
 ```
 

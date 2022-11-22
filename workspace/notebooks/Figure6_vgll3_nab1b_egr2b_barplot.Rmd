@@ -1,11 +1,11 @@
 ---
 title: "Expression of vgll3, nab1b and egr2b in HB.1 cells in HB10hpf R Notebook"
-output: html_notebook
+output: github_document
 ---
 
 
 # 1 libraries
-```{r, results=F}
+```{r libraries, results=F}
 suppressPackageStartupMessages({
   library(Seurat)
   library(Signac)
@@ -15,8 +15,6 @@ suppressPackageStartupMessages({
   library(ggplot2)
   library(ggalluvial)
   library(ggsci)
-  library(tidyr)
-  library(tidyverse)
   library(patchwork)
   library(dittoSeq)
   library(ComplexHeatmap)
@@ -31,14 +29,14 @@ options(future.globals.maxSize = 4000 * 1024^2)
 
 # 2 read data
 
-```{r}
+```{r readdata}
 HB10hpf <- readRDS(file = "RDSfiles/HB10hpf_neural.RDS")
 ```
 
 # 4. Expression of vgll3, egr2b and nab1b by cell in HB.1
 
 ## 4.1 HB10hpf HB.1 data
-```{r}
+```{r subset}
 HB.1cells <- subset(HB10hpf, idents = "HB.1", features = c("vgll3","egr2b","nab1b"))
 df.HB1 <- as.data.frame(t(GetAssayData(HB.1cells, slot = "data", assay = "SCT")))
 
@@ -64,7 +62,7 @@ HB.1data <- data.frame(rhombomere,vgll3.egr2b.nab1b,count)
 HB.1data
 ```
 
-```{r}
+```{r barplot}
 vgll3_egr2b_nab1b_barplot <- ggplot(HB.1data, aes(fill=vgll3.egr2b.nab1b, y=count, x=rhombomere)) + 
     geom_bar(stat="identity") + ylim(0,60) +
     geom_text(data = subset(HB.1data, count !=0),aes(label = count), position = position_stack(vjust = 0.5), 
@@ -73,11 +71,11 @@ vgll3_egr2b_nab1b_barplot <- ggplot(HB.1data, aes(fill=vgll3.egr2b.nab1b, y=coun
   theme_classic() + theme(axis.title.x = element_blank()) + guides(fill=guide_legend(title="vgll3/egr2b/nab1b"))
 vgll3_egr2b_nab1b_barplot
 ```
-```{r}
+```{r save}
 saveRDS(vgll3_egr2b_nab1b_barplot, file = "../results/vgll3_egr2b_nab1b_barplot.RDS")
 ```
 
-```{r}
+```{r sessioninfo}
 sessionInfo()
 ```
 

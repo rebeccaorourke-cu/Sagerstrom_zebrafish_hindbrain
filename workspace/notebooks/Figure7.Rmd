@@ -55,32 +55,32 @@ crabp2aPlot <- FeaturePlot(HB10hpf, features = "crabp2a",reduction = "wnn.umap",
 crabp2aPlot
 ```
 
-```{r featureplot, fig.width=4, fig.height=8}
+```{r vlnplot, fig.width=4, fig.height=8}
 vlnPlot_10hpf <- VlnPlot(HB10hpf, features = c("rarab","crabp2a"), cols = mypal, ncol = 1)
 vlnPlot_10hpf
 ```
 
-```{r}
+```{r split_umap}
 split_umap <- DimPlot(WTplusDEAB, reduction = "ref.umap", split.by = "orig.ident") + 
   scale_color_igv()  + ggtitle("")
 split_umap
 ```
 
-```{r}
+```{r umap}
 umap <- DimPlot(WTplusDEAB, reduction = "ref.umap") + scale_color_igv() + ggtitle("")
 umap
 ```
 
 # Fig 7 combined plots
 
-```{r, fig.width=15, fig.height=10}
+```{r combined, fig.width=15, fig.height=10}
 combined <- (plot_spacer() + (rarabPlot / crabp2aPlot) + vlnPlot_10hpf + umap + plot_layout(widths = c(0.05,0.5,1.1,1))) / 
   (plot_spacer() + split_umap + plot_layout(widths = c(1,2))) 
 combined
 ggsave(filename = "../results/Fig7_10hpf_plus_WTvsDEAB_combinedPlot.png", plot = combined)
 ```
 
-```{r}
+```{r sessionInfo}
 sessionInfo()
 ```
 
