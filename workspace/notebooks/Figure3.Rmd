@@ -111,22 +111,22 @@ heatmapPlot
 ```
 
 
-```{r, fig.width=7, fig.height=3}
-genes1 <- FeaturePlot(seurat, features = c("sox3","neurod4"), reduction = "wnn.umap", max.cutoff = 1)  
+```{r featureplot, fig.width=7, fig.height=6}
+genes1 <- FeaturePlot(seurat, features = c("sox3","neurod4","zic2b","ntn1a"), reduction = "wnn.umap", max.cutoff = 1)  
 genes1
 #ggsave(filename = "../results/Fig3_HB10hpf_genes1_scaledToMin.png", plot = genes1)
 ```
 
-```{r}
+```{r genelist}
 genelist <- c("vgll3","egr2b","mafba","crabp2a","cyp26b1","cyp26c1","ppp1r14ab","dusp2")
 ```
 
-```{r}
+```{r vlnplot}
 genes2 <- FeaturePlot(seurat, features = genelist, reduction = "wnn.umap", max.cutoff = 1, combine = FALSE)
 violinPlot <- VlnPlot(seurat, features = genelist, same.y.lims = TRUE, combine = FALSE)
 ```
 
-```{r, fig.width=17, fig.height=13}
+```{r geneplusvln, fig.width=17, fig.height=13}
 genePlusViolin <- genes2[[1]] + violinPlot[[1]] + NoLegend() + genes2[[2]] + violinPlot[[2]] + NoLegend() + 
   genes2[[3]] + violinPlot[[3]] + NoLegend() + genes2[[4]] + violinPlot[[4]] + NoLegend() +
   genes2[[5]] + violinPlot[[5]] + NoLegend() + genes2[[6]] + violinPlot[[6]] + NoLegend() +
@@ -137,7 +137,7 @@ genePlusViolin
 ```
 
 ## Chromvar activity
-```{r}
+```{r runchromvar}
 seurat <- RunChromVAR(
   object = seurat,
   genome = BSgenome.Drerio.UCSC.danRer11,
@@ -145,13 +145,13 @@ seurat <- RunChromVAR(
 )
 ```
 
-```{r}
+```{r motifs}
 motif.names <- c("EGR2","TEAD1","PKNOX1","MAF","HNF1B","PBX1")
 motifs <- c("MA0472.2","MA0090.3","MA0782.2","MA1520.1","MA0153.2","MA0070.1")
 names(motifs) <- motif.names
 ```
 
-```{r}
+```{r function}
 GetChromVarPlots <- function(object, motifs){
   DefaultAssay(object) <- "chromvar"
   mylist <- list()
@@ -185,12 +185,12 @@ GetChromVarPlots <- function(object, motifs){
 }
 ```
 
-```{r, fig.width=7, fig.height=5}
+```{r getchromvarplot, fig.width=7, fig.height=5}
 cv.list <- GetChromVarPlots(seurat, motifs)
 wrap_plots(cv.list)
 ```
 
-```{r}
+```{r motifplots}
 motif.list <- list()
 for(motif in names(motifs)){
   motif.list[[motif]] <- MotifPlot(
@@ -201,7 +201,7 @@ for(motif in names(motifs)){
 motif.list[[1]]
 ```
 
-```{r, fig.width=15, fig.height=5}
+```{r motifpluschromvar, fig.width=15, fig.height=5}
 motifPlusChromvar <- motif.list[[1]] + cv.list[[1]] + motif.list[[2]] + cv.list[[2]] +
   motif.list[[3]] + cv.list[[3]] + motif.list[[4]] + cv.list[[4]] +
   motif.list[[5]] + cv.list[[5]] + motif.list[[6]] + cv.list[[6]] +
@@ -214,7 +214,7 @@ motifPlusChromvar
 seurat <- BuildClusterTree(seurat, graph = "wsnn")
 ```
 
-```{r plot}
+```{r unrooted_vrs1}
 data.tree <- Tool(object = seurat, slot = "BuildClusterTree")
 pdf(file = "../results/Fig3_HB10hpf_clustertree_unrooted_vrs1.pdf")#,width = 800, height = 800)
 p1 <- ape::plot.phylo(x = data.tree,  use.edge.length = FALSE, cex = 0.7, type = "u", 
@@ -222,7 +222,7 @@ p1 <- ape::plot.phylo(x = data.tree,  use.edge.length = FALSE, cex = 0.7, type =
 p1
 dev.off()
 ```
-```{r, fig.height=7, fig.width=7}
+```{r unrooted_vrs2, fig.height=7, fig.width=7}
 pdf(file = "../results/Fig3_HB10hpf_clustertree_unrooted_vrs2.pdf")
 p1 <- ape::plot.phylo(x = data.tree,  use.edge.length = FALSE, cex = 0.7, type = "u", 
                       align.tip.label = TRUE, label.offset = 0.5)
@@ -246,7 +246,7 @@ combined <- (((umapPlot +
              legend.position = "bottom")) /
       plot_spacer() /
   (((genePlusViolin + plot_layout(guides = "collect")) | 
-      ((genes1 + plot_layout(guides = "collect")) / plot_spacer()) + plot_layout(heights = c(0.7,3))) 
+      ((genes1 + plot_layout(guides = "collect")) / plot_spacer()) + plot_layout(heights = c(2.5,3))) 
    + plot_layout(widths = c(2.8,1))) /
     plot_spacer() /
   (motifPlusChromvar + plot_layout(guides = "collect"))) +

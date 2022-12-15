@@ -1,4 +1,4 @@
-Cluster Naming and plots HB10hpf R Notebook
+Cluster Naming and plots HB13hpf R Notebook
 ================
 
 # 1. libraries
@@ -60,13 +60,13 @@ options(future.globals.maxSize = 4000 * 1024^2)
 ```
 
 ``` r
-mypal <- pal_igv(palette = "default",alpha = 1)(30)
+mypal <- pal_igv(palette = "default",alpha = 1)(35) ## updated from 30 because HB13hpf has 31 clusters and this was causing DoHeatmap to hang
 ```
 
 # 2. Read data
 
 ``` r
-seurat <- readRDS(file = "RDSfiles/HB10hpf.clustered.RDS")
+seurat <- readRDS(file = "RDSfiles/HB13hpf.clustered.RDS")
 DefaultAssay(seurat) <- "SCT"
 Idents(seurat) <- "wsnn_res.3"
 DimPlot(seurat, reduction = "wnn.umap", label = T, repel = T) + scale_color_igv()
@@ -79,30 +79,37 @@ DimPlot(seurat, reduction = "wnn.umap", label = T, repel = T) + scale_color_igv(
 ``` r
 Idents(seurat) <- "wsnn_res.3"
 seurat <- RenameIdents(seurat,
-                       "0" = "Placode.1",
-                       "1" = "Somite.1",
-                       "2" = "HB.1",
-                       "3" = "MHB",
-                       "4" = "FB & eye.1",
-                       "5" = "Vasc & heart",
-                       "6" = "FB & MB",
-                       "7" = "Placode.2",
-                       "8" = "Placode.3",
-                       "9" = "Somite.2",
-                       "10" = "HB.2",
-                       "11" = "NC",
-                       "12" = "CaudHB",
-                       "13" = "SC",
-                       "14" = "Muscle",
-                       "15" = "FB & eye.2",
-                       "16" = "Placode.4",
-                       "17" = "HB & NC",
-                       "18" = "FB",
-                       "19" = "Vasc & skeleton",
-                       "20" = "Notochord",
-                       "21" = "Ciliated",
-                       "22" = "Endoderm",
-                       "23" = "HG")
+                       "0" = "r1 r2 & r4",
+                       "1" = "FB & MB",
+                       "2" = "MHB.1",
+                       "3" = "Placode.1",
+                       "4" = "SC",
+                       "5" = "NC.1",
+                       "6" = "CaudHB.1",
+                       "7" = "Muscle.1",
+                       "8" = "Heart",
+                       "9" = "MHB.2",
+                       "10" = "Muscle.2",
+                       "11" = "Skeletal",
+                       "12" = "Somite",
+                       "13" = "Endoderm",
+                       "14" = "Placode.2",
+                       "15" = "CaudHB.2",
+                       "16" = "r3",
+                       "17" = "r5",
+                       "18" = "Placode.3",
+                       "19" = "Neuron",
+                       "20" = "r6",
+                       "21" = "Blood",
+                       "22" = "Eye.1",
+                       "23" = "NC.2",
+                       "24" = "Eye.2",
+                       "25" = "HiRibosomal",
+                       "26" = "Placode.4",
+                       "27" = "FB & eye",
+                       "28" = "Ciliated",
+                       "29" = "Notochord",
+                       "30" = "Kidney")
 umapPlot <- DimPlot(seurat, reduction = "wnn.umap") + scale_color_igv()
 umapPlot
 ```
@@ -110,18 +117,14 @@ umapPlot
 ![](FigureS2_files/figure-gfm/RenameIdents-1.png)<!-- -->
 
 ``` r
-#ggsave(filename = "../results/FigureS2_HB10hpf_umapPlot.png", plot = umapPlot)
-```
-
-``` r
-saveRDS(seurat, file = "RDSfiles/HB10hpf.clustered.RDS")
+#ggsave(filename = "../results/FigureS2_HB13hpf_umapPlot.png", plot = umapPlot)
 ```
 
 # 4. Find DE genes
 
 ``` r
 All.markers <- FindAllMarkers(seurat, only.pos = T, verbose = F)
-write.table(All.markers, file = "../results/FigureS2_HB10hpf_markers.txt", sep = "\t", quote = F, col.names = NA)
+write.table(All.markers, file = "../results/FigureS2_HB13hpf_markers.txt", sep = "\t", quote = F, col.names = NA)
 ```
 
 ``` r
@@ -129,21 +132,21 @@ top5.pval <- All.markers %>% group_by(cluster) %>% top_n(n=-5, wt = p_val) %>% t
 top5.pval
 ```
 
-    ## # A tibble: 125 × 7
-    ## # Groups:   cluster [25]
-    ##        p_val avg_log2FC pct.1 pct.2 p_val_adj cluster   gene   
-    ##        <dbl>      <dbl> <dbl> <dbl>     <dbl> <fct>     <chr>  
-    ##  1 1.80e-184      1.22  0.664 0.015 3.23e-180 Placode.1 cldni  
-    ##  2 4.91e-166      1.31  0.614 0.015 8.79e-162 Placode.1 samd10a
-    ##  3 4.56e-154      1.67  0.786 0.057 8.16e-150 Placode.1 myh9a  
-    ##  4 7.09e-154      1.67  0.736 0.044 1.27e-149 Placode.1 rpe65b 
-    ##  5 8.21e-145      1.61  0.786 0.059 1.47e-140 Placode.1 gata2a 
-    ##  6 1.70e- 81      0.806 0.289 0.005 3.03e- 77 Somite.1  mafba  
-    ##  7 3.87e- 71      0.964 0.456 0.035 6.93e- 67 Somite.1  col7a1l
-    ##  8 7.76e- 59      1.52  0.939 0.27  1.39e- 54 Somite.1  rfx4   
-    ##  9 2.98e- 58      0.778 0.386 0.031 5.34e- 54 Somite.1  bicd1a 
-    ## 10 1.02e- 57      0.769 0.439 0.044 1.83e- 53 Somite.1  hnf1ba 
-    ## # … with 115 more rows
+    ## # A tibble: 155 × 7
+    ## # Groups:   cluster [31]
+    ##       p_val avg_log2FC pct.1 pct.2 p_val_adj cluster    gene           
+    ##       <dbl>      <dbl> <dbl> <dbl>     <dbl> <fct>      <chr>          
+    ##  1 1.76e-53      1.02  0.541 0.092  3.58e-49 r1 r2 & r4 cyp26c1        
+    ##  2 2.50e-51      1.07  0.827 0.248  5.09e-47 r1 r2 & r4 plp1a          
+    ##  3 6.21e-43      0.889 0.444 0.074  1.26e-38 r1 r2 & r4 skap2          
+    ##  4 2.16e-40      0.936 0.707 0.204  4.40e-36 r1 r2 & r4 lamb2          
+    ##  5 2.07e-35      0.464 0.263 0.029  4.21e-31 r1 r2 & r4 si:dkey-27i16.2
+    ##  6 3.48e-79      1.81  0.651 0.078  7.08e-75 FB & MB    stra6          
+    ##  7 1.00e-39      0.808 0.396 0.054  2.04e-35 FB & MB    kif5c          
+    ##  8 7.58e-35      0.788 0.434 0.078  1.54e-30 FB & MB    sall3b         
+    ##  9 8.03e-35      0.980 0.425 0.074  1.63e-30 FB & MB    afap1l2        
+    ## 10 1.10e-32      0.273 0.189 0.012  2.24e-28 FB & MB    dmbx1b         
+    ## # … with 145 more rows
 
 # 5. Plots
 
@@ -157,7 +160,7 @@ dotPlot
 ![](FigureS2_files/figure-gfm/dotplot-1.png)<!-- -->
 
 ``` r
-#ggsave(filename = "../results/FigureS2_HB10hpf_dotPlot.png", plot = dotPlot)
+#ggsave(filename = "../results/FigureS2_HB13hpf_dotPlot.png", plot = dotPlot)
 ```
 
 ## 5.2 heatmap
@@ -176,7 +179,7 @@ heatmapPlot
 ![](FigureS2_files/figure-gfm/heatmap-1.png)<!-- -->
 
 ``` r
-#ggsave(filename = "../results/FigureS2_HB10hpf_heatmapPlot.png", plot = heatmapPlot)
+#ggsave(filename = "../results/FigureS2_HB13hpf_heatmapPlot.png", plot = heatmapPlot)
 ```
 
 ## 5.3 combine umap, dotplot and heatmap
@@ -190,17 +193,17 @@ combined <- (((umapPlot +
        theme(axis.text.x = element_text(size = 10),
              axis.text.y = element_text(size = 12),
              legend.position = "bottom"))) +
-    plot_layout(heights = c(2.2,1))
+    plot_layout(heights = c(2,1))
 combined
 ```
 
 ![](FigureS2_files/figure-gfm/combined-1.png)<!-- -->
 
 ``` r
-ggsave(filename = "../results/FigureS2_HB10hpf_combinedPlot.png", plot = combined)
+ggsave(filename = "../results/FigureS2_HB13hpf_combinedPlot.png", plot = combined)
 ```
 
-    ## Saving 20 x 14 in image
+    ## Saving 20 x 16 in image
 
 ``` r
 sessionInfo()

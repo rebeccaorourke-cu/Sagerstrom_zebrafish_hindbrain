@@ -102,26 +102,18 @@ dotPlot
 #ggsave(filename = "../results/Fig2_HB16hpf_dotPlot.png", plot = dotPlot)
 ```
 
-## 5.2 heatmap
-```{r heatmap, fig.height=7, fig.width=7}
-heatmapPlot <- DoHeatmap(seurat, features = unique(top5.pval$gene), group.colors = mypal, 
-                         size = 5, angle = 45) + 
-  guides(color = FALSE) +
-  theme(axis.text = element_blank())
-heatmapPlot
-ggsave(filename = "../results/Fig5_HB16hpf_heatmapPlot.png", plot = heatmapPlot) ## heatmap included in Fig5 not Fig2
-```
 
-```{r}
+```{r buildclustertree}
 seurat <- BuildClusterTree(seurat, graph = "wsnn")
 ```
 
-```{r, fig.width=5, fig.height=3}
+```{r plotclustertree, fig.width=5, fig.height=3}
 p <- PlotClusterTree(seurat,direction = "rightwards")
 p
 ```
 
-```{r, fig.height=7, fig.width=7}
+```{r unrooted_vrs1, fig.height=7, fig.width=7}
+data.tree <- Tool(object = seurat, slot = "BuildClusterTree")
 pdf(file = "../results/Fig5_HB16hpf_clustertree_unrooted_vrs1.pdf")
 p1 <- ape::plot.phylo(x = data.tree,  use.edge.length = FALSE, cex = 0.8, type = "u", 
                       align.tip.label = TRUE, label.offset = 0.5, lab4ut = "axial")
@@ -129,7 +121,7 @@ p1
 dev.off()
 ```
 
-```{r, fig.height=7, fig.width=7}
+```{r unrooted_vrs2, fig.height=7, fig.width=7}
 pdf(file = "../results/Fig5_HB16hpf_clustertree_unrooted_vrs2.pdf")
 p1 <- ape::plot.phylo(x = data.tree,  use.edge.length = FALSE, cex = 0.8, type = "u", 
                       align.tip.label = TRUE, label.offset = 0.5)
@@ -138,7 +130,7 @@ dev.off()
 ```
 
 ## 5.3 Feature plots
-```{r, fig.width=7, fig.height=7}
+```{r featureplot, fig.width=7, fig.height=7}
 genePlots <- FeaturePlot(seurat, features = c("sox3","neurod4","zic2a","ntn1a"), reduction = "wnn.umap", max.cutoff = 2)
 genePlots
 #ggsave(filename = "../results/Fig2_HB16hpf_geneExpPlot.png", plot = genePlots)

@@ -1,8 +1,9 @@
 ---
-title: "Cluster Naming and plots HB16hpf R Notebook"
+title: "Cluster Naming and plots HB13hpf_DEAB R Notebook"
 output: 
   github_document
 ---
+
 # 1. libraries
 ```{r libraries, results=F}
 suppressPackageStartupMessages({
@@ -24,14 +25,13 @@ suppressPackageStartupMessages({
 })
 options(future.globals.maxSize = 4000 * 1024^2)
 ```
-
 ```{r mypal}
 mypal <- pal_igv(palette = "default",alpha = 1)(30)
 ```
 
 # 2. Read data
 ```{r readData}
-seurat <- readRDS(file = "RDSfiles/HB16hpf.clustered.RDS")
+seurat <- readRDS(file = "RDSfiles/HB13hpf_DEAB.clustered.RDS")
 DefaultAssay(seurat) <- "SCT"
 Idents(seurat) <- "wsnn_res.3"
 DimPlot(seurat, reduction = "wnn.umap", label = T, repel = T) + scale_color_igv()
@@ -41,45 +41,50 @@ DimPlot(seurat, reduction = "wnn.umap", label = T, repel = T) + scale_color_igv(
 ```{r RenameIdents, fig.height=5, fig.width=10}
 Idents(seurat) <- "wsnn_res.3"
 seurat <- RenameIdents(seurat,
-                       "0" = "r2/r4",
-                       "1" = "MB",
-                       "2" = "CaudHB.1",
-                       "3" = "SC",
-                       "4" = "Somite",
-                       "5" = "CaudHB.2",
-                       "6" = "Muscle.1",
-                       "7" = "MHB",
-                       "8" = "Vasc/skeleton",
-                       "9" = "Vasc/heart",
-                       "10" = "Neurons",
-                       "11" = "Endoderm",
-                       "12" = "DorsalNT/NC",
-                       "13" = "Placode.1",
+                       "0" = "NC.1",
+                       "1" = "r1/r2/r4",
+                       "2" = "MHB.1",
+                       "3" = "MB.1",
+                       "4" = "HB-like",
+                       "5" = "MHB.2",
+                       "6" = "Placode.1",
+                       "7" = "Placode.2",
+                       "8" = "Eye.1",
+                       "9" = "SC.1",
+                       "10" = "Placode.3",
+                       "11" = "vasculature",
+                       "12" = "FB/eye.1",
+                       "13" = "muscle.1",
                        "14" = "r3",
-                       "15" = "Placode.2",
-                       "16" = "Muscle.2",
-                       "17" = "r6",
-                       "18" = "NC.1",
-                       "19" = "r5.1",
-                       "20" = "NC.2",
-                       "21" = "r5.2",
-                       "22" = "Placode.3",
-                       "23" = "Ciliated",
-                       "24" = "epidermis",
-                       "25" = "Eye",
-                       "26" = "Placode.4",
-                       "27" = "Kidney",
-                       "28" = "Blood",
-                       "29" = "HiRibosomal")
+                       "15" = "SC.2?",
+                       "16" = "placode.4",
+                       "17" = "MHB.3",
+                       "18" = "NC.2?",
+                       "19" = "somite",
+                       "20" = "ribosomal",
+                       "21" = "endoderm?",
+                       "22" = "muscle.2",
+                       "23" = "eye.2",
+                       "24" = "heart",
+                       "25" = "notochord",
+                       "26" = "ciliated",
+                       "27" = "neuron",
+                       "28" = "skeletal",
+                       "29" = "blood",
+                       "30" = "kidney",
+                       "31" = "epidermis")
 umapPlot <- DimPlot(seurat, reduction = "wnn.umap") + scale_color_igv()
 umapPlot
-#ggsave(filename = "../results/FigureS4_HB16hpf_umapPlot.png", plot = umapPlot)
+```
+
+```{r save}
+saveRDS(seurat, file = "RDSfiles/HB13hpf_DEAB.clustered.RDS")
 ```
 
 # 4. Find DE genes
 ```{r markers, results=F}
 All.markers <- FindAllMarkers(seurat, only.pos = T, verbose = F)
-write.table(All.markers, file = "../results/FigureS4_HB16hpf_markers.txt", sep = "\t", quote = F, col.names = NA)
+write.table(All.markers, file = "../results/FigureS4_HB13hpf_DEAB_markers.txt", sep = "\t", quote = F, col.names = NA)
 ```
 
 ```{r top5}
@@ -89,21 +94,19 @@ top5.pval
 
 # 5. Plots
 ## 5.1 dotplot
-```{r dotplot, fig.width=25, fig.height=7}
+```{r dotplot, fig.width=25, fig.height=5}
 dotPlot <- DotPlot(seurat, features = unique(top5.pval$gene)) + RotatedAxis()
 dotPlot
-#ggsave(filename = "../results/FigureS4_HB16hpf_dotPlot.png", plot = dotPlot)
 ```
 
 ## 5.2 heatmap
 ```{r heatmap, fig.height=20, fig.width=10}
-heatmapPlot <- DoHeatmap(seurat, features = unique(top5.pval$gene), group.colors = mypal, size = 4, angle = 90) + guides(color = FALSE)
+heatmapPlot <- DoHeatmap(seurat, features = unique(top5.pval$gene), group.colors = mypal, size = 5, angle = 90) + guides(color = FALSE)
 heatmapPlot
-#ggsave(filename = "../results/FigureS4_HB16hpf_heatmapPlot.png", plot = heatmapPlot)
 ```
 
 ## 5.3 combine umap, dotplot and heatmap
-```{r combined, fig.height=16, fig.width=20}
+```{r combined, fig.height=14, fig.width=20}
 combined <- (((umapPlot + 
       theme(legend.text = element_text(size = 20))) |
      (heatmapPlot +
@@ -112,9 +115,9 @@ combined <- (((umapPlot +
        theme(axis.text.x = element_text(size = 10),
              axis.text.y = element_text(size = 12),
              legend.position = "bottom"))) +
-    plot_layout(heights = c(2,1))
+    plot_layout(heights = c(2.2,1))
 combined
-ggsave(filename = "../results/FigureS4_HB16hpf_combinedPlot.png", plot = combined)
+ggsave(filename = "../results/FigureS4_HB13hpf_DEAB_combinedPlot.png", plot = combined)
 ```
 
 

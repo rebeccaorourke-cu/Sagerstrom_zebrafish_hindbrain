@@ -540,15 +540,15 @@ seurat <- RunUMAP(seurat, nn.name = "weighted.nn", reduction.name = "wnn.umap", 
     ## To use Python UMAP via reticulate, set umap.method to 'umap-learn' and metric to 'correlation'
     ## This message will be shown once per session
 
-    ## 09:48:42 UMAP embedding parameters a = 0.9922 b = 1.112
+    ## 11:44:05 UMAP embedding parameters a = 0.9922 b = 1.112
 
-    ## 09:48:43 Commencing smooth kNN distance calibration using 1 thread
+    ## 11:44:06 Commencing smooth kNN distance calibration using 1 thread
 
-    ## 09:48:44 Initializing from normalized Laplacian + noise
+    ## 11:44:07 Initializing from normalized Laplacian + noise
 
-    ## 09:48:44 Commencing optimization for 500 epochs, with 65480 positive edges
+    ## 11:44:07 Commencing optimization for 500 epochs, with 65480 positive edges
 
-    ## 09:48:48 Optimization finished
+    ## 11:44:10 Optimization finished
 
 ``` r
 DimPlot(seurat, reduction = "wnn.umap") + scale_color_igv()

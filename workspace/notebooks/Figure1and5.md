@@ -167,30 +167,6 @@ dotPlot
 #ggsave(filename = "../results/Fig1_HB13hpf_dotPlot.png", plot = dotPlot)
 ```
 
-## 5.2 heatmap
-
-``` r
-heatmapPlot <- DoHeatmap(seurat, features = unique(top5.pval$gene), group.colors = mypal, 
-                         size = 5, angle = 45) + 
-  guides(color = FALSE) +
-  theme(axis.text = element_blank())
-```
-
-    ## Warning: The `<scale>` argument of `guides()` cannot be `FALSE`. Use "none" instead as
-    ## of ggplot2 3.3.4.
-
-``` r
-heatmapPlot
-```
-
-![](Figure1and5_files/figure-gfm/heatmap-1.png)<!-- -->
-
-``` r
-ggsave(filename = "../results/Fig5_HB13hpf_heatmapPlot.png", plot = heatmapPlot) ## heatmap included in Fig 5 not Fig 1
-```
-
-    ## Saving 7 x 7 in image
-
 # Build Cluster Tree
 
 ``` r

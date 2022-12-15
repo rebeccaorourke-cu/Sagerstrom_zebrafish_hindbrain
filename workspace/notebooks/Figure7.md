@@ -82,25 +82,32 @@ DimPlot(HB10hpf, reduction = "wnn.umap", label = T, repel = T) + scale_color_igv
 ![](Figure7_files/figure-gfm/dimplot1-1.png)<!-- -->
 
 ``` r
-rarabPlot <- FeaturePlot(HB10hpf, features = "rarab",reduction = "wnn.umap", max.cutoff = 2.1)
+rarabPlot <- FeaturePlot(HB10hpf, features = "rarab",reduction = "wnn.umap", max.cutoff = 1.4)
 rarabPlot
 ```
 
 ![](Figure7_files/figure-gfm/featureplot-1.png)<!-- -->
 
 ``` r
-crabp2aPlot <- FeaturePlot(HB10hpf, features = "crabp2a",reduction = "wnn.umap", max.cutoff = 2.1)
+crabp2aPlot <- FeaturePlot(HB10hpf, features = "crabp2a",reduction = "wnn.umap", max.cutoff = 1.4)
 crabp2aPlot
 ```
 
 ![](Figure7_files/figure-gfm/featureplot-2.png)<!-- -->
 
 ``` r
-vlnPlot_10hpf <- VlnPlot(HB10hpf, features = c("rarab","crabp2a"), cols = mypal, ncol = 1)
-vlnPlot_10hpf
+fgf3Plot <- FeaturePlot(HB10hpf, features = "fgf3",reduction = "wnn.umap", max.cutoff = 1.4)
+fgf3Plot
 ```
 
-![](Figure7_files/figure-gfm/vlnplot-1.png)<!-- -->
+![](Figure7_files/figure-gfm/featureplot-3.png)<!-- -->
+
+``` r
+fgf8aPlot <- FeaturePlot(HB10hpf, features = "fgf8a",reduction = "wnn.umap", max.cutoff = 1.4)
+fgf8aPlot
+```
+
+![](Figure7_files/figure-gfm/featureplot-4.png)<!-- -->
 
 ``` r
 split_umap <- DimPlot(WTplusDEAB, reduction = "ref.umap", split.by = "orig.ident") + 
@@ -120,8 +127,11 @@ umap
 # Fig 7 combined plots
 
 ``` r
-combined <- (plot_spacer() + (rarabPlot / crabp2aPlot) + vlnPlot_10hpf + umap + plot_layout(widths = c(0.05,0.5,1.1,1))) / 
-  (plot_spacer() + split_umap + plot_layout(widths = c(1,2))) 
+combined <- (plot_spacer() + 
+               (rarabPlot  / crabp2aPlot) +
+               plot_spacer() +
+               (fgf3Plot / fgf8aPlot) + umap + plot_layout(widths = c(0.05,0.5,0.05,0.5,1))) /
+  (plot_spacer() + split_umap + plot_layout(widths = c(1,2)))
 combined
 ```
 

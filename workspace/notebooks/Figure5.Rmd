@@ -1,0 +1,305 @@
+---
+title: "Figure 5 R Notebook"
+output: 
+  github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r libraries, results=F}
+suppressPackageStartupMessages({
+  library(Seurat)
+  library(org.Dr.eg.db)
+  library(BSgenome.Drerio.UCSC.danRer11)
+  library(Signac)
+  library(knitr)
+  library(kableExtra)
+  library(dplyr)
+  library(ggplot2)
+  library(ggsci)
+  library(limma)
+  library(JASPAR2020)
+  library(patchwork)
+  library(TFBSTools)
+  library(motifmatchr)
+  library(AnnotationHub)
+  library(harmony)
+})
+options(future.globals.maxSize = 4000 * 1024^2)
+```
+
+```{r mypal}
+mypal <- pal_igv(palette = "default",alpha = 1)(30)
+```
+
+# 2. Read data
+
+```{r readdata1}
+HB13hpf <- readRDS(file = "RDSfiles/HB13hpf_neural.RDS")
+DefaultAssay(HB13hpf) <- "SCT"
+Idents(HB13hpf) <- "Clusters"
+HB16hpf <- readRDS(file = "RDSfiles/HB16hpf_neural.RDS")
+DefaultAssay(HB16hpf) <- "SCT"
+Idents(HB16hpf) <- "Clusters"
+```
+
+```{r readdata2}
+HB.int <- readRDS(file = "RDSfiles/int.neural.3WT.subset.RDS")
+DefaultAssay(HB.int) <- "SCT"
+DimPlot(HB.int, reduction = "wnn.umap") + scale_color_igv()
+```
+
+```{r rename}
+HB.int$intClusters <- as.character(HB.int$intClusters)
+HB.int$intClusters[HB.int$intClusters %in% c("r1&r2.1","r1&r2.2")] <- "r1&r2"
+HB.int$intClusters[HB.int$intClusters %in% c("r3.1")] <- "r3"
+HB.int$intClusters[HB.int$intClusters %in% c("r4.1","r4.2")] <- "r4"
+HB.int$intClusters[HB.int$intClusters %in% c("r5.1","r5.2")] <- "r5"
+HB.int$intClusters[HB.int$intClusters %in% c("r6.1","r6.2")] <- "r6"
+HB.int$intClusters <- droplevels(as.factor(HB.int$intClusters))
+Idents(HB.int) <- "intClusters"
+levels(HB.int)
+```
+
+```{r levels}
+levels(HB.int) <- c("r1","r1&r2","r2","r3","r4","r5","r6","CaudHB.1","CaudHB.2","CaudHB.3","CaudHB.4","Ciliated","HB","MB.1","MB.2",
+                    "MB.3","MHB.1","MHB.2","MHB.3","MHB.4","MHB.5","MHB.6","Mitochondrial","NC.1","NC.2","Neurog","Neuron.1", 
+                    "Neuron.2","SC.1","SC.2","SC.3","SC.4")
+```
+
+# 3. Heatmaps
+
+## 3.1 HB13hpf top5 DE genes
+```{r markers_13, results=F}
+All.markers.13 <- FindAllMarkers(HB13hpf, only.pos = T, verbose = F)
+```
+
+```{r top5_13}
+top5.pval.13 <- All.markers.13 %>% group_by(cluster) %>% top_n(n=-5, wt = p_val) %>% top_n(n=5, wt = avg_log2FC)
+top5.pval.13
+```
+
+```{r heatmap_13, fig.height=7, fig.width=7}
+Idents(HB13hpf) <- "Clusters"
+HB13hpf <- RenameIdents(HB13hpf, "FB.1" = "FB.1       ") ## this makes the length of longest name same as HB16hpf so they even in combined plot
+heatmapPlot.13 <- DoHeatmap(HB13hpf, features = unique(top5.pval.13$gene), group.colors = mypal, 
+                         size = 5, angle = 45) + 
+  guides(color = FALSE) +
+  theme(axis.text = element_blank())
+heatmapPlot.13
+```
+
+## 3.2 HB16hpf top5 DE genes
+```{r markers_16, results=F}
+All.markers.16 <- FindAllMarkers(HB16hpf, only.pos = T, verbose = F)
+```
+
+```{r top5_16}
+top5.pval.16 <- All.markers.16 %>% group_by(cluster) %>% top_n(n=-5, wt = p_val) %>% top_n(n=5, wt = avg_log2FC)
+top5.pval.16
+```
+
+```{r heatmap_16, fig.height=7, fig.width=7}
+heatmapPlot.16 <- DoHeatmap(HB16hpf, features = unique(top5.pval.16$gene), group.colors = mypal, 
+                         size = 5, angle = 45) + 
+  guides(color = FALSE) +
+  theme(axis.text = element_blank())
+heatmapPlot.16
+```
+
+# 3. Compare r1, r3 & r5 to r2, r4 and r6
+```{r markers135}
+r135vs246_markers <- FindMarkers(HB.int, 
+                                 ident.1 = c("r1","r3","r5"), 
+                                 ident.2 = c("r2","r4","r6"), verbose = FALSE)
+```
+
+```{r avg135}
+avg_r135vs246 <- AverageExpression(HB.int, features = rownames(r135vs246_markers), assays = "SCT")$SCT
+avg_r135vs246 <- as.data.frame(avg_r135vs246) %>%
+  select(r1, r2, r3, r4, r5, r6)
+r135vs246_m_avg <- cbind(r135vs246_markers,avg_r135vs246)
+```
+
+
+```{r table135}
+r135over246_m_avg <- r135vs246_m_avg %>%
+  filter(p_val_adj < 0.05 & avg_log2FC > 0.5 & r1 > 0 & r3 > 0 & r5 > 0)
+r135over246_m_avg
+```
+
+```{r table246}
+r246over135_m_avg <- r135vs246_m_avg %>%
+  filter(p_val_adj < 0.05 & avg_log2FC < -0.5 & r2 > 0 & r4 > 0 & r6 > 0)
+r246over135_m_avg
+```
+
+## 3.1 r1/r3/r5 over r2/r4/r6
+```{r vln135, fig.width=6, fig.height=5}
+p135 <- VlnPlot(HB.int, features = rownames(r135over246_m_avg %>% filter(p_val_adj < 0.05 & abs(avg_log2FC) > 0.5)), 
+        idents = c("r1","r2","r3","r4","r5","r6"), stack = TRUE, flip = TRUE, fill.by = "ident", cols = mypal) + NoLegend() +
+  theme(axis.title.x = element_blank()) + ggtitle("r1/r3/r5")
+p135
+```
+
+## 3.1 r2/r4/r6 over r1/r3/r5
+```{r vln246, fig.width=6, fig.height=5}
+p246 <- VlnPlot(HB.int, features = rownames(r246over135_m_avg %>% filter(p_val_adj < 0.05 & abs(avg_log2FC) > 0.5)), 
+        idents = c("r1","r2","r3","r4","r5","r6"), stack = TRUE, flip = TRUE, fill.by = "ident", cols = mypal) + NoLegend() +
+  theme(axis.title.x = element_blank()) + ggtitle("r2/r4/r6")
+p246
+```
+
+# 4. Compare r1 & r2 to rest
+```{r markers12}
+r12vsRest_markers <- FindMarkers(HB.int, 
+                                 ident.1 = c("r1","r1&r2","r2"), 
+                                 ident.2 = c("r3","r5","r4","r6"), verbose = FALSE)
+```
+
+```{r avg12}
+avg_r12vsRest <- AverageExpression(HB.int, features = rownames(r12vsRest_markers), assays = "SCT")$SCT
+avg_r12vsRest <- as.data.frame(avg_r12vsRest) %>%
+  select(r1, r2, r3, r4, r5, r6)
+r12vsRest_m_avg <- cbind(r12vsRest_markers,avg_r12vsRest)
+```
+
+
+```{r table12}
+r12overRest_m_avg <- r12vsRest_m_avg %>%
+  filter(p_val_adj < 0.05 & avg_log2FC > 0.5 & r1 > 0 & r2 > 0)
+r12overRest_m_avg
+```
+
+```{r table3456}
+# Restoverr12_m_avg <- r12vsRest_m_avg %>%
+#   filter(p_val_adj < 0.05 & avg_log2FC < -0.5 & r3 > 0 & r4 > 0 & r5 > 0 & r6 > 0)
+# Restoverr12_m_avg
+```
+
+## 4.1 r1/r2 over r3/r4/r5/r6
+```{r vln12, fig.width=4, fig.height=8}
+p12 <- VlnPlot(HB.int, features = rownames(r12overRest_m_avg %>% filter(p_val_adj < 0.05 & abs(avg_log2FC) > 0.5)), 
+        idents = c("r1","r1&r2","r2","r3","r4","r5","r6"), stack = TRUE, flip = TRUE, fill.by = "ident", cols = mypal) + NoLegend() +
+  theme(axis.title.x = element_blank()) + ggtitle("r1/r2")
+p12
+```
+
+
+## 4.2 r3/r4/r5/r6 over r1/r2
+```{r vln3456, fig.width=4, fig.height=8}
+# VlnPlot(HB.int, features = rownames(Restoverr12_m_avg %>% filter(p_val_adj < 0.05 & abs(avg_log2FC) > 0.5)), 
+#         idents = c("r1","r1&r2","r2","r3","r4","r5","r6"), stack = TRUE, flip = TRUE, fill.by = "ident", cols = mypal) + NoLegend()
+```
+
+
+# 5. Compare r3 & r4 to rest
+```{r markers34}
+r34vsRest_markers <- FindMarkers(HB.int, 
+                                 ident.1 = c("r3","r4"), 
+                                 ident.2 = c("r1","r1&r2","r2","r5","r6"), verbose = FALSE)
+```
+
+```{r avg34}
+avg_r34vsRest <- AverageExpression(HB.int, features = rownames(r34vsRest_markers), assays = "SCT")$SCT
+avg_r34vsRest <- as.data.frame(avg_r34vsRest) %>%
+  select(r1, r2, r3, r4, r5, r6)
+r34vsRest_m_avg <- cbind(r34vsRest_markers,avg_r34vsRest)
+```
+
+```{r table34}
+r34overRest_m_avg <- r34vsRest_m_avg %>%
+  filter(p_val_adj < 0.05 & avg_log2FC > 0.5 & r3 > 0 & r4 > 0)
+r34overRest_m_avg
+```
+
+```{r table1256}
+# Restoverr34_m_avg <- r34vsRest_m_avg %>%
+#   filter(p_val_adj < 0.05 & avg_log2FC < -0.5 & r1 > 0 & r2 > 0 & r5 > 0 & r6 > 0)
+# Restoverr34_m_avg
+```
+## 5.1 r3/r4 over r1/r2/r5/r6
+```{r vln34, fig.width=4, fig.height=5}
+p34 <- VlnPlot(HB.int, features = rownames(r34overRest_m_avg %>% filter(p_val_adj < 0.05 & abs(avg_log2FC) > 0.5)), 
+        idents = c("r1","r1&r2","r2","r3","r4","r5","r6"), stack = TRUE, flip = TRUE, fill.by = "ident", cols = mypal) + NoLegend() +
+  theme(axis.title.x = element_blank()) + ggtitle("r3/r4")
+p34
+```
+
+## 5.2 r1/r2/r5/r6 over r3/r4
+```{r vln1256, fig.width=4, fig.height=5}
+# VlnPlot(HB.int, features = rownames(Restoverr34_m_avg %>% filter(p_val_adj < 0.05 & abs(avg_log2FC) > 0.5)), 
+#         idents = c("r1","r1&r2","r2","r3","r4","r5","r6"), stack = TRUE, flip = TRUE, fill.by = "ident", cols = mypal) + NoLegend()
+```
+
+# 6. Compare r5 & r6 to rest
+```{r markers56}
+r56vsRest_markers <- FindMarkers(HB.int, 
+                                 ident.1 = c("r5","r6"), 
+                                 ident.2 = c("r1","r1&r2","r2","r3","r4"), verbose = FALSE)
+```
+
+```{r avg56}
+avg_r56vsRest <- AverageExpression(HB.int, features = rownames(r56vsRest_markers), assays = "SCT")$SCT
+avg_r56vsRest <- as.data.frame(avg_r56vsRest) %>%
+  select(r1, r2, r3, r4, r5, r6)
+r56vsRest_m_avg <- cbind(r56vsRest_markers,avg_r56vsRest)
+```
+
+```{r table56}
+r56overRest_m_avg <- r56vsRest_m_avg %>%
+  filter(p_val_adj < 0.05 & avg_log2FC > 0.5 & r5 > 0 & r6 > 0)
+r56overRest_m_avg
+```
+
+```{r table1234}
+# Restoverr56_m_avg <- r56vsRest_m_avg %>%
+#   filter(p_val_adj < 0.05 & avg_log2FC < -0.5 & r1 > 0 & r2 > 0 & r3 > 0 & r4 > 0)
+# Restoverr56_m_avg
+```
+## 6.1 r5/r6 over r1/r2/r3/r4
+```{r vln56, fig.width=4, fig.height=10}
+p56 <- VlnPlot(HB.int, features = rownames(r56overRest_m_avg %>% filter(p_val_adj < 0.05 & abs(avg_log2FC) > 0.5)), 
+        idents = c("r1","r1&r2","r2","r3","r4","r5","r6"), stack = TRUE, flip = TRUE, fill.by = "ident", cols = mypal) + NoLegend() +
+  theme(axis.title.x = element_blank()) + ggtitle("r5/r6")
+p56
+```
+
+## 6.2 r1/r2/r3/r4 over r5/r6
+```{r vln1234, fig.width=4, fig.height=10}
+# VlnPlot(HB.int, features = rownames(Restoverr56_m_avg %>% filter(p_val_adj < 0.05 & abs(avg_log2FC) > 0.5)), 
+#         idents = c("r1","r1&r2","r2","r3","r4","r5","r6"), stack = TRUE, flip = TRUE, fill.by = "ident", cols = mypal) + NoLegend() 
+```
+
+
+```{r write}
+write.table(r135vs246_m_avg, file = "../results/rhom_DEgenes_135vs246.txt", sep = "\t", quote = FALSE, col.names = NA)
+write.table(r12vsRest_m_avg, file = "../results/rhom_DEgenes_12vs3456.txt", sep = "\t", quote = FALSE, col.names = NA)
+write.table(r34vsRest_m_avg, file = "../results/rhom_DEgenes_34vs1256.txt", sep = "\t", quote = FALSE, col.names = NA)
+write.table(r56vsRest_m_avg, file = "../results/rhom_DEgenes_56vs1234.txt", sep = "\t", quote = FALSE, col.names = NA)
+```
+
+```{r combined2, fig.height=25, fig.width=25}
+combined <- 
+  (((heatmapPlot.13) +
+      #plot_spacer() +
+     (heatmapPlot.16) #+ 
+     #plot_layout(widths = c(2,0.1,2))
+  ) /
+  ((plot_spacer()) +
+     ((p135 / plot_spacer() / p246 / plot_spacer() / p12 / plot_spacer() / p34) + 
+        plot_layout(heights = c(17,0.1,6,0.1,13,0.1,5))) + 
+     #plot_spacer() +
+     (p56) +
+     plot_layout(widths = c(3,1,1))
+  )) + 
+  plot_layout(heights = c(1,1.5))
+combined
+ggsave(filename = "../results/Fig5_combinedPlot.png", plot = combined)
+```
+```{r sessioninfo}
+sessionInfo()
+```
+
