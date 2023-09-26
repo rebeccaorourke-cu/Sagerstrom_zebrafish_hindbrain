@@ -10,17 +10,10 @@ suppressPackageStartupMessages({
   library(org.Dr.eg.db)
   library(BSgenome.Drerio.UCSC.danRer11)
   library(Signac)
-  library(knitr)
-  library(kableExtra)
   library(dplyr)
   library(ggplot2)
   library(ggsci)
-  library(limma)
-  library(JASPAR2020)
   library(patchwork)
-  library(TFBSTools)
-  library(motifmatchr)
-  library(harmony)
 })
 options(future.globals.maxSize = 4000 * 1024^2)
 ```
@@ -71,7 +64,8 @@ seurat <- RenameIdents(seurat,
                        "27" = "Kidney",
                        "28" = "Blood",
                        "29" = "HiRibosomal")
-umapPlot <- DimPlot(seurat, reduction = "wnn.umap") + scale_color_igv()
+seurat$Clusters <- Idents(seurat)
+umapPlot <- DimPlot(seurat, group.by = "Clusters", reduction = "wnn.umap") + scale_color_igv()
 umapPlot
 #ggsave(filename = "../results/FigureS3_HB16hpf_umapPlot.png", plot = umapPlot)
 ```
@@ -103,7 +97,7 @@ heatmapPlot
 ```
 
 ## 5.3 combine umap, dotplot and heatmap
-```{r combined, fig.height=16, fig.width=20}
+```{r combined, fig.height=16, fig.width=23}
 combined <- (((umapPlot + 
       theme(legend.text = element_text(size = 20))) |
      (heatmapPlot +
@@ -115,6 +109,9 @@ combined <- (((umapPlot +
     plot_layout(heights = c(2,1))
 combined
 ggsave(filename = "../results/FigureS3_HB16hpf_combinedPlot.png", plot = combined)
+```
+```{r}
+saveRDS(seurat, file = "RDSfiles/HB16hpf.clustered.RDS")
 ```
 
 

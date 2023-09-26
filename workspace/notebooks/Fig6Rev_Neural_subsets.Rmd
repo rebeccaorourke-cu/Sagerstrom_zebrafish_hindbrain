@@ -1,0 +1,107 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+Create merged E10hpf, HB13hpf, HB16hpf from whole datasets using correct annotation of clusters updated as of 7/27/2023. (corrected mixup of r6 and neurons in HB13hpf).  After creating int_peaks assay with combined peaks of all 3 datasets will remove ATAC, peaks and SCT assays before merging.  The saved versions of E10hpf, HB13hpf and HB16hpf saved here will also have these assays removed.  Hopefully this will speed up merging and integration.
+
+# 1. libraries and palette
+```{r, results=F}
+suppressPackageStartupMessages({
+  library(Seurat)
+  library(dplyr)
+  library(Signac)
+  library(ggplot2)
+  library(ggsci)
+  library(patchwork)
+  library(GenomicRanges)
+  library(AnnotationHub)
+  library(SeuratWrappers)
+  library(cicero)
+  library(JASPAR2020)
+  library(patchwork)
+  library(TFBSTools)
+  library(motifmatchr)
+  library(BSgenome.Drerio.UCSC.danRer11)
+}) 
+options(future.globals.maxSize = 4000 * 1024^2)
+options(Seurat.object.assay.version = "v3")
+```
+
+```{r}
+mypal <- pal_igv(palette = "default",alpha = 1)(40)
+```
+
+
+# Read data
+```{r}
+neural <- readRDS(file = "RDSfiles/merged_E10_HB13_HB16_neural.RDS")
+Idents(neural) <- "orig.ident"
+seurat <- subset(neural, idents = c("E10hpf","HB13hpf"))
+```
+
+# Calculate linked peaks
+Need reducedDims for conversion to cicero
+```{r}
+DefaultAssay(seurat) <- "RNA"
+seurat <- NormalizeData(seurat)
+seurat <- FindVariableFeatures(seurat)
+seurat <- ScaleData(seurat)
+seurat <- RunPCA(seurat)
+seurat <- RunUMAP(seurat, dims = 1:20)
+```
+
+
+```{r}
+DefaultAssay(seurat) <- "int_peaks"
+genome <- seqlengths(seurat)
+genome.df <- data.frame("chr" = names(genome), "length" = genome)
+seurat.cds <- as.cell_data_set(x = seurat)
+seurat.cicero <- make_cicero_cds(seurat.cds, reduced_coordinates = reducedDims(seurat.cds)$UMAP)
+
+# run cicero
+conns <- run_cicero(seurat.cicero, genomic_coords = genome.df, sample_num = 100)
+```
+
+```{r}
+# find cis-co-acceccible networks
+ccans <- generate_ccans(conns)
+seurat.links <- ConnectionsToLinks(conns = conns, ccans = ccans, threshold = 0.4)
+Links(seurat) <- seurat.links
+```
+
+```{r}
+Idents(seurat) <- "Clusters"
+DefaultAssay(seurat) <- "RNA"
+HB1.r2.r3 <- subset(seurat, idents = c("HB.1","r2","r3"))
+HB1.r2.r3 <- NormalizeData(HB1.r2.r3)
+HB1.r2.r3 <- FindVariableFeatures(HB1.r2.r3)
+HB1.r2.r3 <- ScaleData(HB1.r2.r3)
+HB1.r2.r3 <- RunPCA(HB1.r2.r3)
+HB1.r2.r3 <- RunUMAP(HB1.r2.r3, dims = 1:20)
+DefaultAssay(HB1.r2.r3) <- "int_peaks"
+Links(HB1.r2.r3) <- seurat.links
+DimPlot(HB1.r2.r3, group.by = c("orig.ident","Clusters"))
+saveRDS(HB1.r2.r3, file = "RDSfiles/HB1.r2.r3.RDS")
+```
+
+
+```{r}
+Idents(seurat) <- "Clusters"
+HB2.r5.r6 <- subset(seurat, idents = c("HB.2","r5","r6"))
+HB2.r5.r6 <- NormalizeData(HB2.r5.r6)
+HB2.r5.r6 <- FindVariableFeatures(HB2.r5.r6)
+HB2.r5.r6 <- ScaleData(HB2.r5.r6)
+HB2.r5.r6 <- RunPCA(HB2.r5.r6)
+HB2.r5.r6 <- RunUMAP(HB2.r5.r6, dims = 1:20)
+DefaultAssay(HB2.r5.r6) <- "int_peaks"
+Links(HB2.r5.r6) <- seurat.links
+DimPlot(HB2.r5.r6, group.by = c("orig.ident","Clusters"))
+saveRDS(HB2.r5.r6, file = "RDSfiles/HB2.r5.r6.RDS")
+```
+
+
+```{r}
+sessionInfo()
+```
+

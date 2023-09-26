@@ -1,0 +1,138 @@
+---
+title: "R Notebook"
+output:
+  html_notebook
+  
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# 1. libraries, palette and functions
+```{r libraries, results=F}
+suppressPackageStartupMessages({
+  library(Seurat)
+  library(org.Dr.eg.db)
+  library(BSgenome.Drerio.UCSC.danRer11)
+  library(Signac)
+  library(knitr)
+  library(kableExtra)
+  library(dplyr)
+  library(ggplot2)
+  library(ggsci)
+  library(limma)
+  library(JASPAR2020)
+  library(patchwork)
+  library(TFBSTools)
+  library(motifmatchr)
+  library(AnnotationHub)
+  library(harmony)
+})
+options(future.globals.maxSize = 4000 * 1024^2)
+```
+
+```{r mypal}
+mypal <- pal_igv(palette = "default",alpha = 1)(30)
+```
+
+```{r GetUMAPandClusters, results=F, warnings=F,fig.width=15, fig.height=5}
+GetUMAPandClusters <- function(seurat){
+  # RNA analysis
+  DefaultAssay(seurat) <- "RNA"
+  seurat <- SCTransform(seurat, verbose = FALSE, return.only.var.genes = FALSE) 
+  seurat <- RunPCA(seurat) 
+  ElbowPlot(seurat,ndims = 50)
+  seurat <- RunUMAP(seurat, dims = 1:50, reduction.name = 'umap.rna', reduction.key = 'rnaUMAP_')
+  
+  # ATAC analysis
+  # We exclude the first dimension as this is typically correlated with sequencing depth
+  DefaultAssay(seurat) <- "peaks"
+  
+  seurat <- FindTopFeatures(seurat, min.cutoff = 5)
+  seurat <- RunTFIDF(seurat)
+  seurat <- RunSVD(seurat)
+  seurat <- RunUMAP(seurat, reduction = 'lsi', dims = 2:50, reduction.name = "umap.atac", reduction.key = "atacUMAP_")
+  
+  DefaultAssay(seurat) <- "SCT"
+  seurat <- FindMultiModalNeighbors(seurat, reduction.list = list("pca", "lsi"), dims.list = list(1:50, 2:50))
+  seurat <- RunUMAP(seurat, nn.name = "weighted.nn", reduction.name = "wnn.umap", reduction.key = "wnnUMAP_", assay = "RNA")
+  seurat <- FindClusters(seurat, graph.name = "wsnn", algorithm = 3, verbose = FALSE)
+  seurat <- FindClusters(seurat, graph.name = "wsnn", algorithm = 3, verbose = FALSE, resolution = 3.0)
+  seurat <- FindClusters(seurat, graph.name = "wsnn", algorithm = 3, verbose = FALSE, resolution = 6.0)
+  seurat <- FindClusters(seurat, graph.name = "wsnn", algorithm = 3, verbose = FALSE, resolution = 8.0)
+  
+  p1 <- DimPlot(seurat, reduction = "umap.rna", label = TRUE, label.size = 5, repel = TRUE, group.by = "wsnn_res.0.8") + ggtitle("RNA") + scale_color_igv()
+  p2 <- DimPlot(seurat, reduction = "umap.atac", label = TRUE, label.size = 5, repel = TRUE, group.by = "wsnn_res.0.8") + ggtitle("ATAC") + scale_color_igv()
+  p3 <- DimPlot(seurat, reduction = "wnn.umap", label = TRUE, label.size = 5, repel = TRUE, group.by = "wsnn_res.0.8") + ggtitle("WNN") + scale_color_igv()
+  print(p1 + p2 + p3 & NoLegend() & theme(plot.title = element_text(hjust = 0.5)))
+  
+  return(seurat)
+}
+```
+
+#2 read data
+```{r}
+DEAB_WT <- readRDS(file = "RDSfiles/HB13.WT.DEAB.neural.refMap.int.RDS")
+DimPlot(DEAB_WT, reduction = "ref.umap") + scale_color_igv()
+```
+```{r}
+Idents(DEAB_WT) <- "orig.ident"
+DEAB <- subset(DEAB_WT, idents = "DEAB")
+DimPlot(DEAB, reduction = "ref.umap", group.by = "predicted.Clusters") + scale_color_igv()
+```
+```{r reprocess, results = F, warnings = F, fig.height=5, fig.width=15}
+DEAB <- GetUMAPandClusters(DEAB)
+```
+```{r, fig.width=10, fig.height=10}
+p1 <- DimPlot(DEAB, reduction = "wnn.umap", group.by = "wsnn_res.8", label = TRUE) + scale_color_igv() + NoLegend()
+p2 <- DimPlot(DEAB, reduction = "wnn.umap", group.by = "wsnn_res.6", label = TRUE) + scale_color_igv() + NoLegend()
+p3 <- DimPlot(DEAB, reduction = "wnn.umap", group.by = "wsnn_res.3", label = TRUE) + scale_color_igv() + NoLegend()
+p4 <- DimPlot(DEAB, reduction = "wnn.umap", group.by = "predicted.Clusters", label = TRUE) + scale_color_igv() + NoLegend()
+(p1 + p2) / (p3 + p4)
+```
+
+### Counts of predicted.Clusters IDs in clusters 15 and 17 (res 3)
+```{r}
+kable(as.data.frame(table(DEAB$wsnn_res.3, DEAB$predicted.Clusters)) %>%
+  filter(Var1 %in% c("15","17") & Freq > 0) %>%
+  arrange(Var1, desc(Freq)))
+```
+
+
+```{r}
+Idents(DEAB) <- "wsnn_res.3"
+levels(DEAB) <- c("12","3","18","5","14","1","2","9","0","10","11","4","8","7","15","17","6","13","16")
+```
+
+## Res 3 marker genes
+```{r, results=FALSE}
+markers <- FindAllMarkers(DEAB, only.pos = TRUE)
+```
+
+
+```{r, results=FALSE}
+top10 <- markers %>% group_by(cluster) %>% top_n(n=-10, wt = p_val) %>% top_n(n=10, wt = avg_log2FC)
+top10
+```
+
+```{r}
+DoHeatmap(DEAB, features = unique(top10$gene), group.colors = mypal, size = 5, angle = 45) + 
+  guides(color = FALSE) +
+  theme(axis.text = element_blank())
+```
+```{r}
+r5r6genes <- c("egr2b","mafba","egr2a","sema3ab","timp2b","mafba","abcc8","hoxa4a","cyp26c1")
+DotPlot(DEAB, features = unique(r5r6genes)) + RotatedAxis()
+```
+```{r}
+DefaultAssay(DEAB_WT) <- "SCT"
+Idents(DEAB_WT) <- "predicted.Clusters"
+DotPlot(DEAB_WT, features = unique(r5r6genes)) + RotatedAxis()
+```
+
+
+```{r}
+sessionInfo()
+```
+

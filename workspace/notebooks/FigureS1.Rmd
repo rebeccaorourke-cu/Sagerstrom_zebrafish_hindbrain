@@ -11,17 +11,10 @@ suppressPackageStartupMessages({
   library(org.Dr.eg.db)
   library(BSgenome.Drerio.UCSC.danRer11)
   library(Signac)
-  library(knitr)
-  library(kableExtra)
   library(dplyr)
   library(ggplot2)
   library(ggsci)
-  library(limma)
-  library(JASPAR2020)
   library(patchwork)
-  library(TFBSTools)
-  library(motifmatchr)
-  library(harmony)
 })
 options(future.globals.maxSize = 4000 * 1024^2)
 ```
@@ -42,30 +35,32 @@ DimPlot(seurat, reduction = "wnn.umap", label = T, repel = T) + scale_color_igv(
 Idents(seurat) <- "wsnn_res.3"
 seurat <- RenameIdents(seurat,
                        "0" = "Placode.1",
-                       "1" = "Somite.1",
-                       "2" = "HB.1",
-                       "3" = "MHB",
-                       "4" = "FB & eye.1",
-                       "5" = "Vasc & heart",
-                       "6" = "FB & MB",
+                       "1" = "HB.1",
+                       "2" = "MHB",
+                       "3" = "FB & eye.1",
+                       "4" = "Vasc & heart",
+                       "5" = "Somite.1",
+                       "6" = "MB",
                        "7" = "Placode.2",
                        "8" = "Placode.3",
-                       "9" = "Somite.2",
-                       "10" = "HB.2",
-                       "11" = "NC",
-                       "12" = "CaudHB",
+                       "9" = "NC",
+                       "10" = "CHB",
+                       "11" = "HB.2",
+                       "12" = "Somite.2",
                        "13" = "SC",
                        "14" = "Muscle",
                        "15" = "FB & eye.2",
                        "16" = "Placode.4",
                        "17" = "HB & NC",
                        "18" = "FB",
-                       "19" = "Vasc & skeleton",
-                       "20" = "Notochord",
-                       "21" = "Ciliated",
-                       "22" = "Endoderm",
-                       "23" = "HG")
-umapPlot <- DimPlot(seurat, reduction = "wnn.umap") + scale_color_igv()
+                       "19" = "Somite.3",
+                       "20" = "Vasc & skeletal",
+                       "21" = "Notochord",
+                       "22" = "Ciliated",
+                       "23" = "Endoderm",
+                       "24" = "HG")
+seurat$Clusters <- Idents(seurat)
+umapPlot <- DimPlot(seurat, group.by = "Clusters", reduction = "wnn.umap") + scale_color_igv()
 umapPlot
 #ggsave(filename = "../results/FigureS1_HB10hpf_umapPlot.png", plot = umapPlot)
 ```
@@ -101,7 +96,7 @@ heatmapPlot
 ```
 
 ## 5.3 combine umap, dotplot and heatmap
-```{r combined, fig.height=14, fig.width=20}
+```{r combined, fig.height=14, fig.width=23}
 combined <- (((umapPlot + 
       theme(legend.text = element_text(size = 20))) |
      (heatmapPlot +

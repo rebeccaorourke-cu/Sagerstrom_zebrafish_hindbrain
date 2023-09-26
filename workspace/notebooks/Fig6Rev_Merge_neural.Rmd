@@ -1,0 +1,273 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+Create merged E10hpf, HB13hpf, HB16hpf from whole datasets using correct annotation of clusters updated as of 7/27/2023. (corrected mixup of r6 and neurons in HB13hpf).  After creating int_peaks assay with combined peaks of all 3 datasets will remove ATAC, peaks and SCT assays before merging.  The saved versions of E10hpf, HB13hpf and HB16hpf saved here will also have these assays removed.  Hopefully this will speed up merging and integration.
+
+# 1. libraries and palette
+```{r, results=F}
+suppressPackageStartupMessages({
+  library(Seurat)
+  library(dplyr)
+  library(Signac)
+  library(ggplot2)
+  library(ggsci)
+  library(patchwork)
+  library(GenomicRanges)
+  library(AnnotationHub)
+  library(SeuratWrappers)
+  library(cicero)
+  library(JASPAR2020)
+  library(patchwork)
+  library(TFBSTools)
+  library(motifmatchr)
+  library(BSgenome.Drerio.UCSC.danRer11)
+}) 
+options(future.globals.maxSize = 4000 * 1024^2)
+options(Seurat.object.assay.version = "v3")
+```
+
+```{r}
+mypal <- pal_igv(palette = "default",alpha = 1)(40)
+```
+
+# 2. Read data
+```{r}
+E10hpf <- readRDS(file = "~/Documents/Projects/Sagerstrom/Sagerstrom_zebrafish_hindbrain/workspace/notebooks/RDSfiles/HB10hpf_neural.RDS")
+HB13hpf <- readRDS(file = "~/Documents/Projects/Sagerstrom/Sagerstrom_zebrafish_hindbrain/workspace/notebooks/RDSfiles/HB13hpf_neural.RDS")
+HB16hpf <- readRDS(file = "~/Documents/Projects/Sagerstrom/Sagerstrom_zebrafish_hindbrain/workspace/notebooks/RDSfiles/HB16hpf_neural.RDS")
+```
+
+```{r}
+DefaultAssay(E10hpf) <- "peaks"
+DefaultAssay(HB13hpf) <- "peaks"
+DefaultAssay(HB16hpf) <- "peaks"
+```
+
+```{r}
+E10hpf$orig.ident <- "E10hpf"
+HB13hpf$orig.ident <- "HB13hpf"
+HB16hpf$orig.ident <- "HB16hpf"
+```
+
+```{r, fig.width=10, fig.height=10}
+p1 <- DimPlot(E10hpf, group.by = c("Clusters"), reduction = "wnn.umap", label = TRUE, label.size = 3, repel = TRUE) + 
+  scale_color_igv() + NoLegend() + ggtitle("E10hpf")
+p2 <- DimPlot(HB13hpf, group.by = c("Clusters"), reduction = "wnn.umap", label = TRUE, label.size = 3, repel = TRUE) + 
+  scale_color_igv() + NoLegend() + ggtitle("HB13hpf")
+p3 <- DimPlot(HB16hpf, group.by = c("Clusters"), reduction = "wnn.umap", label = TRUE, label.size = 3, repel = TRUE) + 
+  scale_color_igv() + NoLegend() + ggtitle("HB16hpf")
+p1 + p2 + p3 + plot_spacer()
+```
+
+# 3. Common ATAC peaks
+The first step in combining ATAC datasets is to create a common ATAC peaks list to use for creating the peaks assay
+
+```{r}
+# Create a unified set of peaks to quantify in each dataset
+combined.peaks <- reduce(x = c(E10hpf@assays$peaks@ranges,HB13hpf@assays$peaks@ranges,HB16hpf@assays$peaks@ranges))
+# Filter out bad peaks based on length
+combined.peaks
+peakwidths <- width(combined.peaks)
+combined.peaks <- combined.peaks[peakwidths  < 10000 & peakwidths > 20]
+combined.peaks
+```
+
+## 3.2 Quantify peaks in each sample
+
+The processed RNAseq/ATACseq samples already have a Fragment class object so can use that to create a new assay which will call int_peaks, to distinguish it from the original ATAC peaks assay from the 10X genomics peak calls and the peaks assay from the macs2 peak calls for the individual sample
+```{r}
+## first quantify combined peaks in each sample
+DefaultAssay(E10hpf) <- "peaks"
+E10hpf.counts <- FeatureMatrix(
+  fragments = Fragments(E10hpf),
+  features = combined.peaks,
+  cells = colnames(E10hpf)
+)
+DefaultAssay(HB13hpf) <- "peaks"
+HB13hpf.counts <- FeatureMatrix(
+  fragments = Fragments(HB13hpf),
+  features = combined.peaks,
+  cells = colnames(HB13hpf)
+)
+DefaultAssay(HB16hpf) <- "peaks"
+HB16hpf.counts <- FeatureMatrix(
+  fragments = Fragments(HB16hpf),
+  features = combined.peaks,
+  cells = colnames(HB16hpf)
+)
+```
+
+## 3.3 Get annotation
+```{r annotationHub}
+ah = AnnotationHub()
+GRCz11.v99.EnsDb = ah[["AH78759"]]  ## cellranger_arc_genomes/zebrafishPlusGFP built on GRCz11.v99.gtf
+```
+
+```{r annotation, results=FALSE, warning=FALSE}
+# get gene annotations for GRCz11
+annotation <- GetGRangesFromEnsDb(ensdb = GRCz11.v99.EnsDb, verbose = FALSE)
+seqlevelsStyle(annotation) <- "UCSC"
+genome(annotation) <- "GRCz11"
+```
+
+## 3.4 Create int_peaks assay
+```{r}
+## next create chromatin assay for each sample
+E10hpf[["int_peaks"]] <- CreateChromatinAssay(
+    counts = E10hpf.counts,
+    fragments = Fragments(E10hpf),
+    annotation = annotation,
+    genome = 'GRCz11'
+  )
+HB13hpf[["int_peaks"]] <- CreateChromatinAssay(
+    counts = HB13hpf.counts,
+    fragments = Fragments(HB13hpf),
+    annotation = annotation,
+    genome = 'GRCz11'
+  )
+HB16hpf[["int_peaks"]] <- CreateChromatinAssay(
+    counts = HB16hpf.counts,
+    fragments = Fragments(HB16hpf),
+    annotation = annotation,
+    genome = 'GRCz11'
+  )
+```
+
+## 3.5 remove unneeded assays 
+Remove ATAC, peaks and SCT assays from datasets to hopefully speed up merging.  These assays will not be used in integrated object.  If needed can redo SCT normalization with Seurat v5, but will start with analysis using RNA assay and standard normalization for trajectory analysis.
+
+```{r}
+DefaultAssay(E10hpf) <- "RNA"
+DefaultAssay(HB13hpf) <- "RNA"
+DefaultAssay(HB16hpf) <- "RNA"
+E10hpf[["ATAC"]] <- NULL
+E10hpf[["peaks"]] <- NULL
+E10hpf[["SCT"]] <- NULL
+HB13hpf[["ATAC"]] <- NULL
+HB13hpf[["peaks"]] <- NULL
+HB13hpf[["SCT"]] <- NULL
+HB16hpf[["ATAC"]] <- NULL
+HB16hpf[["peaks"]] <- NULL
+HB16hpf[["SCT"]] <- NULL
+```
+
+
+# 4. V5 Integration
+
+## 4.1 merge Seurat objects
+```{r}
+DefaultAssay(E10hpf) <- "RNA"
+DefaultAssay(HB13hpf) <- "RNA"
+DefaultAssay(HB16hpf) <- "RNA"
+seurat <- merge(E10hpf, y = list(HB13hpf, HB16hpf))
+seurat
+```
+
+```{r}
+saveRDS(seurat, file = "RDSfiles/merged_E10_HB13_HB16_neural.RDS")
+```
+
+# Calculate linked peaks
+Need reducedDims for conversion to cicero
+```{r}
+DefaultAssay(seurat) <- "RNA"
+seurat <- NormalizeData(seurat)
+seurat <- FindVariableFeatures(seurat)
+seurat <- ScaleData(seurat)
+seurat <- RunPCA(seurat)
+seurat <- RunUMAP(seurat, dims = 1:20)
+```
+
+
+```{r}
+DefaultAssay(seurat) <- "int_peaks"
+genome <- seqlengths(seurat)
+genome.df <- data.frame("chr" = names(genome), "length" = genome)
+seurat.cds <- as.cell_data_set(x = seurat)
+seurat.cicero <- make_cicero_cds(seurat.cds, reduced_coordinates = reducedDims(seurat.cds)$UMAP)
+
+# run cicero
+conns <- run_cicero(seurat.cicero, genomic_coords = genome.df, sample_num = 100)
+```
+
+```{r}
+# find cis-co-acceccible networks
+ccans <- generate_ccans(conns)
+seurat.links <- ConnectionsToLinks(conns = conns, ccans = ccans, threshold = 0.4)
+Links(seurat) <- seurat.links
+```
+
+```{r}
+Idents(seurat) <- "Clusters"
+DefaultAssay(seurat) <- "RNA"
+HB1.r2 <- subset(seurat, idents = c("HB.1","r2"))
+HB1.r2 <- NormalizeData(HB1.r2)
+HB1.r2 <- FindVariableFeatures(HB1.r2)
+HB1.r2 <- ScaleData(HB1.r2)
+HB1.r2 <- RunPCA(HB1.r2)
+HB1.r2 <- RunUMAP(HB1.r2, dims = 1:20)
+DefaultAssay(HB1.r2) <- "int_peaks"
+Links(HB1.r2) <- seurat.links
+DimPlot(HB1.r2, group.by = "orig.ident")
+saveRDS(HB1.r2, file = "RDSfiles/HB1.r2.RDS")
+```
+
+```{r}
+HB1.r3 <- subset(seurat, idents = c("HB.1","r3"))
+HB1.r3 <- NormalizeData(HB1.r3)
+HB1.r3 <- FindVariableFeatures(HB1.r3)
+HB1.r3 <- ScaleData(HB1.r3)
+HB1.r3 <- RunPCA(HB1.r3)
+HB1.r3 <- RunUMAP(HB1.r3, dims = 1:20)
+DefaultAssay(HB1.r3) <- "int_peaks"
+Links(HB1.r3) <- seurat.links
+DimPlot(HB1.r3, group.by = "orig.ident")
+saveRDS(HB1.r3, file = "RDSfiles/HB1.r3.RDS")
+```
+
+```{r}
+HB3.r4 <- subset(seurat, idents = c("HB.3","r4"))
+HB3.r4 <- NormalizeData(HB3.r4)
+HB3.r4 <- FindVariableFeatures(HB3.r4)
+HB3.r4 <- ScaleData(HB3.r4)
+HB3.r4 <- RunPCA(HB3.r4)
+HB3.r4 <- RunUMAP(HB3.r4, dims = 1:20)
+DefaultAssay(HB3.r4) <- "int_peaks"
+Links(HB3.r4) <- seurat.links
+DimPlot(HB3.r4, group.by = "orig.ident")
+saveRDS(HB3.r4, file = "RDSfiles/HB3.r4.RDS")
+```
+
+```{r}
+Idents(seurat) <- "Clusters"
+HB2.r5 <- subset(seurat, idents = c("HB.2","r5","r5.1","r5.2"))
+HB2.r5 <- NormalizeData(HB2.r5)
+HB2.r5 <- FindVariableFeatures(HB2.r5)
+HB2.r5 <- ScaleData(HB2.r5)
+HB2.r5 <- RunPCA(HB2.r5)
+HB2.r5 <- RunUMAP(HB2.r5, dims = 1:20)
+DefaultAssay(HB2.r5) <- "int_peaks"
+Links(HB2.r5) <- seurat.links
+DimPlot(HB2.r5, group.by = "orig.ident")
+saveRDS(HB2.r5, file = "RDSfiles/HB2.r5.RDS")
+```
+
+```{r}
+HB2.r6 <- subset(seurat, idents = c("HB.2","r6"))
+HB2.r6 <- NormalizeData(HB2.r6)
+HB2.r6 <- FindVariableFeatures(HB2.r6)
+HB2.r6 <- ScaleData(HB2.r6)
+HB2.r6 <- RunPCA(HB2.r6)
+HB2.r6 <- RunUMAP(HB2.r6, dims = 1:20)
+DefaultAssay(HB2.r6) <- "int_peaks"
+Links(HB2.r6) <- seurat.links
+DimPlot(HB2.r6, group.by = "orig.ident")
+saveRDS(HB2.r6, file = "RDSfiles/HB2.r6.RDS")
+```
+
+```{r}
+sessionInfo()
+```
+

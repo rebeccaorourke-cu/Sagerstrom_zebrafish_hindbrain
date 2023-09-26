@@ -4,6 +4,7 @@ author: "Rebecca O'Rourke"
 output: github_document
 ---
 
+
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
@@ -31,6 +32,10 @@ suppressPackageStartupMessages({
 })
 options(future.globals.maxSize = 4000 * 1024^2)
 ```
+
+Seurat                   [satijalab/seurat@seurat5 -> 4.1.0]
+- SeuratObject             [mojaveazure/seurat-object@seurat5 -> 4.0.4]
+- Signac                   [stuart-lab/signac@seurat5 -> 1.6.0]
 
 # Get annotation
 ```{r annotationHub}
@@ -113,7 +118,7 @@ HB13hpf[["int_peaks"]] <- CreateChromatinAssay(
   )
 HB16hpf[["int_peaks"]] <- CreateChromatinAssay(
     counts = HB16hpf.counts,
-    fragments = Fragments(HB10hpf),
+    fragments = Fragments(HB16hpf),
     annotation = annotation,
     genome = 'GRCz11'
   )
@@ -156,7 +161,8 @@ RNA_integration <- function(seurat.list){
                                            anchor.features = features)
   seurat.int <- IntegrateData(anchorset = seurat.anchors, normalization.method = "SCT")
   seurat.int <- RunPCA(seurat.int, verbose = FALSE)
-  seurat.int <- RunUMAP(seurat.int, dims = 1:50, reduction.name = 'umap.rna', reduction.key = 'rnaUMAP_')
+  seurat.int <- RunUMAP(seurat.int, dims = 1:50, reduction.name = 'umap.rna', reduction.key = 'rnaUMAP_',
+                        umap.method = 'umap-learn', metric = 'correlation')
   
   return(seurat.int)
 }
@@ -175,6 +181,10 @@ HB16hpf$orig.ident <- "HB16hpf"
 ```{r run_rna_integration}
 list.3WT <- list(HB10hpf,HB13hpf,HB16hpf)
 int.3WT <- RNA_integration(list.3WT)
+```
+```{r}
+int.3WT <- RunUMAP(int.3WT, dims = 1:50, reduction.name = 'umap.rna', reduction.key = 'rnaUMAP_',
+                        umap.method = 'umap-learn', metric = 'correlation')
 ```
 
 ```{r int3WT_intpeaks}

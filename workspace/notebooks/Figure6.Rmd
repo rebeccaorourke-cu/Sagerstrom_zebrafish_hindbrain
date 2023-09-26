@@ -45,8 +45,12 @@ DimPlot(seurat, reduction = "wnn.umap", label = T, repel = T) + scale_color_igv(
 
 ```{r rename, fig.width=10, fig.height=7}
 Idents(seurat) <- "intClusters"
+seurat <- RenameIdents(seurat,
+             "CaudHB.1" = "CHB.1",
+             "CaudHB.2" = "CHB.2",
+             "CaudHB.3" = "CHB.3")
 levels(seurat) <- c("MB.1","MB.2","MB.3","MHB.1","MHB.2","MHB.3","MHB.4","MHB.5","MHB.6","Neurog","r1","r2","r1&r2.1","r1&r2.2","r3.1",
-                    "r4.1","r4.2","r5.1","r5.2","r6.1","r6.2","HB","CaudHB.1","CaudHB.2","CaudHB.3","CaudHB.4","SC.1","SC.2","SC.3","SC.4",
+                    "r4.1","r4.2","r5.1","r5.2","r6.1","r6.2","HB","CHB.1","CHB.2","CHB.3","CaudHB.4","SC.1","SC.2","SC.3","SC.4",
                     "NC.1","NC.2","Neuron.1","Neuron.2","Ciliated","Mitochondrial")
 seurat$intClusters <- Idents(seurat)
 umapPlot <- DimPlot(seurat, reduction = "wnn.umap", pt.size = 3) + scale_color_igv() + theme(legend.text = element_text(size = 16))

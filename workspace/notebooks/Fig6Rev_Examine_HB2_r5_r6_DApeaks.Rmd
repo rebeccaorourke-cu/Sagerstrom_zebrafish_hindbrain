@@ -1,0 +1,150 @@
+---
+title: "R Notebook"
+output: 
+  html_notebook:
+    toc: TRUE
+    toc_depth: 2
+    toc_float: TRUE
+---
+
+# 1. libraries and palette
+```{r, results=F}
+suppressPackageStartupMessages({
+  library(Seurat)
+  library(dplyr)
+  library(Signac)
+  library(ggplot2)
+  library(ggsci)
+  library(patchwork)
+  library(GenomicRanges)
+  library(AnnotationHub)
+  library(SeuratWrappers)
+  library(cicero)
+  library(JASPAR2020)
+  library(patchwork)
+  library(TFBSTools)
+  library(motifmatchr)
+  library(BSgenome.Drerio.UCSC.danRer11)
+  library(dittoSeq)
+}) 
+options(future.globals.maxSize = 4000 * 1024^2)
+options(Seurat.object.assay.version = "v3")
+```
+
+```{r}
+mypal <- pal_igv(palette = "default",alpha = 1)(40)
+```
+
+# 2. Read data
+```{r}
+rhom <- readRDS(file = "RDSfiles/HB2.r5.r6.RDS")
+```
+
+## 2.1 list of zebrafish TFs
+This was generated from list of human TF from http://humantfs.ccbr.utoronto.ca/index.php and zfin zebrafish/human ortholog table in R notebook, R_General/GetListZebrafishTFs.Rmd
+```{r}
+z.tf <- read.csv(file = "~/Documents/Projects/R_General/zfin_ortho_humanTFs.txt", header = T, sep = "\t")
+head(z.tf)
+```
+
+# 3. DE genes over time
+## 3.1 HB.2 (E10) vs r5 (HB13)
+```{r, results=F}
+DefaultAssay(rhom) <- "RNA"
+Idents(rhom) <- "Clusters"
+HB2vsr5.markers <- FindMarkers(rhom, ident.1 = "HB.2", ident.2 = "r5")
+HB2vsr5.markers
+```
+
+### 3.1.1 DE genes p-value < 0.05, |log2FC| > 1.5
+```{r}
+HB2vsr5.filtered <-  HB2vsr5.markers[HB2vsr5.markers$p_val_adj < 0.05 & abs(HB2vsr5.markers$avg_log2FC) > 1.5,]
+HB2vsr5.filtered
+```
+
+## 3.2 HB.2 vs r6
+```{r, results=F}
+DefaultAssay(rhom) <- "RNA"
+Idents(rhom) <- "Clusters"
+HB2vsr6.markers <- FindMarkers(rhom, ident.1 = "HB.2", ident.2 = "r6")
+HB2vsr6.markers
+```
+
+### 3.2.1 DE genes p-value < 0.05, |log2FC| > 1.5
+```{r}
+HB2vsr6.filtered <-  HB2vsr6.markers[HB2vsr6.markers$p_val_adj < 0.05 & abs(HB2vsr6.markers$avg_log2FC) > 1.5,]
+HB2vsr6.filtered
+```
+
+## 3.3 heatmap
+
+* DE genes between HB.2 vs r6 (adj p-value < 0.05 and |log2FC| > 1.5) not in HB.2 vs r5 (only adj p-value < 0.05) 
+* plus DE genes between HB.2 and r5 (adj p-value < 0.05 and |log2FC| > 1.5) not in HB.2 and r6 (only adj p-value < 0.05)
+
+```{r}
+HB2.r6.unique2 <- rownames(HB2vsr6.filtered)[!rownames(HB2vsr6.filtered) %in% 
+                                               rownames(HB2vsr5.markers[HB2vsr5.markers$p_val_adj < 0.05,])]
+HB2.r5.unique2 <- rownames(HB2vsr5.filtered)[!rownames(HB2vsr5.filtered) %in% 
+                                               rownames(HB2vsr6.markers[HB2vsr6.markers$p_val_adj < 0.05,])]
+```
+
+```{r, fig.width=7, fig.height=10}
+DefaultAssay(rhom) <- "RNA"
+comb_heatmap_all <- dittoHeatmap(rhom, 
+                             genes = c(HB2.r6.unique2,HB2.r5.unique2), 
+                             #cells = cells.rhb, 
+                             assay = "RNA", #slot = "data", 
+                             annot.by = c("orig.ident","Clusters"), 
+                             order.by = c("orig.ident","Clusters"), 
+                             scaled.to.max = T, 
+                             show_rownames = T,
+                             cluster_rows = T)
+```
+
+```{r}
+png(filename = "../results/Fig6_panelI_heatmap_HB2_r5_r6.png", width=7,height=10,units="in",res=1200)
+DefaultAssay(rhom) <- "RNA"
+comb_heatmap_all <- dittoHeatmap(rhom, 
+                             genes = c(HB2.r6.unique2,HB2.r5.unique2), 
+                             #cells = cells.rhb, 
+                             assay = "RNA", #slot = "data", 
+                             annot.by = c("orig.ident","Clusters"), 
+                             order.by = c("orig.ident","Clusters"), 
+                             scaled.to.max = T, 
+                             show_rownames = T,
+                             cluster_rows = T)
+dev.off()
+```
+
+```{r, fig.width=7, fig.height=2.5}
+p <- FeaturePlot(rhom, features = "egr2b", split.by = "orig.ident")
+ggsave("../results/SuppFig6_D_egr2b.png", width = 7, height = 2.5)
+```
+
+
+```{r, fig.width=7, fig.height=2.5}
+p <- FeaturePlot(rhom, features = "hoxa4a", split.by = "orig.ident")
+ggsave("../results/SuppFig6_E_hoxa4ab.png", width = 7, height = 2.5)
+```
+
+
+```{r, fig.width=7, fig.height=2.5}
+p <- FeaturePlot(rhom, features = "hoxd3a", split.by = "orig.ident")
+ggsave("../results/SuppFig6_F_hoxd3a.png", width = 7, height = 2.5)
+```
+
+
+```{r, fig.width=7, fig.height=2.5}
+p <- FeaturePlot(rhom, features = "cxcl12a", split.by = "orig.ident")
+ggsave("../results/SuppFig6_G_cxcl12a.png", width = 7, height = 2.5)
+```
+
+
+```{r, fig.width=7, fig.height=2.5}
+p <- FeaturePlot(rhom, features = "ror1", split.by = "orig.ident")
+ggsave("../results/SuppFig6_H_ror1.png", width = 7, height = 2.5)
+```
+```{r}
+sessionInfo()
+```
+
