@@ -1,0 +1,172 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r, results=F}
+suppressPackageStartupMessages({
+  library(Seurat)
+  library(dplyr)
+  library(Signac)
+  library(ggplot2)
+  library(ggsci)
+  library(patchwork)
+}) 
+options(future.globals.maxSize = 4000 * 1024^2)
+```
+
+```{r}
+HB13.rep1 <- readRDS(file = "~/Documents/Projects/Sagerstrom/Sagerstrom_zebrafish_hindbrain/workspace/notebooks/RDSfiles/HB13hpf_neural.RDS")
+DefaultAssay(HB13.rep1) <- "SCT"
+Idents(HB13.rep1) <- "Clusters"
+```
+
+```{r}
+HB13.rep2 <- readRDS(file = "RDSfiles/HB13hpf_rep2_neural.RDS")
+DefaultAssay(HB13.rep2) <- "SCT"
+Idents(HB13.rep2) <- "predicted.Clusters"
+```
+
+```{r, fig.width=10, fig.height=4}
+p1 <- DimPlot(HB13.rep1, reduction = "wnn.umap") + scale_color_igv() + ggtitle("rep1 neural")
+p2 <- DimPlot(HB13.rep2, reduction = "ref.umap") + scale_color_igv() + ggtitle("rep2 neural")
+p1 + p2
+```
+
+
+```{r}
+HB13.rep1 <- RunUMAP(HB13.rep1, nn.name = "weighted.nn", reduction.name = "wnn.umap", 
+              reduction.key = "wnnUMAP_", return.model = TRUE)
+DimPlot(HB13.rep1, group.by = "Clusters", reduction = "wnn.umap") + scale_color_igv()
+```
+
+
+```{r}
+HB13.rep1 <- RunSPCA(HB13.rep1, assay = 'SCT', graph = 'wsnn')
+```
+
+
+```{r}
+anchors <- FindTransferAnchors(
+  reference = HB13.rep1,
+  query = HB13.rep2,
+  normalization.method = "SCT",
+  reference.reduction = "spca",
+  dims = 1:50
+)
+```
+
+```{r}
+HB13.rep2 <- TransferData(
+  anchorset = anchors, 
+  reference = HB13.rep1,
+  query = HB13.rep2,
+  refdata = list(
+    Clusters = "Clusters")
+)
+```
+
+
+```{r}
+HB13.rep2 <- IntegrateEmbeddings(
+  anchorset = anchors,
+  reference = HB13.rep1,
+  query = HB13.rep2, 
+  new.reduction.name = "ref.spca"
+)
+```
+
+
+```{r}
+HB13.rep2 <- ProjectUMAP(
+  query = HB13.rep2, 
+  query.reduction = "ref.spca", 
+  reference = HB13.rep1, 
+  reference.reduction = "spca", 
+  reduction.model = "wnn.umap"
+)
+```
+
+```{r}
+DimPlot(HB13.rep2, reduction = "ref.umap", group.by = "predicted.Clusters", label = TRUE, label.size = 3, repel = TRUE) + NoLegend() + scale_color_igv()
+```
+
+```{r}
+#merge reference and query
+HB13.rep1$id <- 'rep1'
+HB13.rep2$id <- 'rep2'
+refquery <- merge(HB13.rep1, HB13.rep2)
+```
+
+Because cell ID's are the same between HB13.rep1 and HB13.rep2 and _1 and _2 are added to cell ID's in the merged dataset, the cell ID's in the refquery and HB13.rep1 and HB13.rep2 don't match so merging the spca and ref.spca reductions fails.  Therefore will create new reduction objects with corrected cell ID's to merge and add as refquery spca reduction to use in RunUMAP.
+
+```{r}
+head(WhichCells(HB13.rep1))
+head(WhichCells(HB13.rep2))
+head(WhichCells(refquery))
+tail(WhichCells(refquery))
+```
+```{r}
+rep1.spca <- HB13.rep1[["spca"]]
+rep1.spca <- RenameCells(rep1.spca, new.names = paste(rownames(rep1.spca),"1",sep = "_"))
+head(rownames(rep1.spca))
+rep2.spca <- HB13.rep2[["ref.spca"]]
+rep2.spca <- RenameCells(rep2.spca, new.names = paste(rownames(rep2.spca),"2",sep = "_"))
+head(rownames(rep2.spca))
+```
+
+```{r}
+refquery[["spca"]] <- merge(rep1.spca, rep2.spca)
+refquery <- RunUMAP(refquery, reduction = 'spca', dims = 1:50)
+```
+
+Combine Clusters from HB13.rep1 and predicted.Clusters from HB13.rep2 into one metadata column
+
+```{r}
+refquery$Clusters[is.na(refquery$Clusters)] <- refquery$predicted.Clusters[is.na(refquery$Clusters)]
+```
+
+```{r, fig.width=15, fig.height=5}
+Idents(refquery) <- "Clusters"
+DimPlot(refquery, group.by = c('id',"Clusters"), shuffle = TRUE, raster = FALSE, ncol = 2, label = TRUE, repel = TRUE) + scale_color_igv() + NoLegend()
+```
+
+```{r}
+refquery <- FindNeighbors(refquery, reduction = 'spca', dims = 1:50)
+refquery <- FindClusters(refquery, resolution = 3)
+DimPlot(refquery) + scale_color_igv()
+```
+Cluster 2 is new cluster of cells when adding rep2 to rep1
+```{r}
+markers.C2 <- FindMarkers(refquery, ident.1 = "2", recorrect_umi = FALSE)
+head(markers.C2, 20)
+```
+```{r}
+head(markers.C2[markers.C2$avg_log2FC > 0,], 20)
+```
+
+```{r, fig.width=7, fig.height=7}
+FeaturePlot(refquery, features = c("nCount_RNA","nFeature_RNA","nCount_ATAC","nFeature_ATAC"), ncol = 2, max.cutoff = 'q90')
+```
+```{r}
+FeaturePlot(refquery, features = "percent.mt", max.cutoff = 'q99', split.by = "id")
+```
+Cluster2 cells which do not have an equivalent cluster in HB13hpf_rep1 seems to be lower expression cells, mainly consistent with CHB.1 cells but also a few cells in other clusters scattered throughout umap.  Can be left in combined sample with ref.umap and predicted clusters without interferring with DE/DA cluster analyses. 
+
+```{r, fig.width=10, fig.height=4}
+p1 <- DimPlot(HB13.rep2, reduction = "ref.umap", group.by = "predicted.Clusters", cells.highlight = gsub("1_2","1",WhichCells(refquery, idents = "2")))
+p2 <- DimPlot(HB13.rep2, reduction = "ref.umap", group.by = "predicted.Clusters", label = TRUE) + NoLegend() + scale_color_igv()
+p1 + p2
+```
+```{r}
+refquery$Clusters[refquery$SCT_snn_res.3 == "2"] <- "low_expression"
+DimPlot(refquery, group.by = "Clusters") + scale_color_igv()
+```
+```{r}
+saveRDS(refquery, file = "RDSfiles/HB13hpf_rep1_rep2_neural_merged.RDS")
+```
+
+```{r}
+sessionInfo()
+```
+

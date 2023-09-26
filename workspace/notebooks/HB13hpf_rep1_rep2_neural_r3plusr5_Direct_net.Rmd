@@ -1,0 +1,344 @@
+---
+title: "HB13hpf rep1 and rep2 neural refmapped integrated sample DIRECT-NET repeat to produce r3plusr5 network R Notebook"
+output: html_notebook
+---
+
+# 1. libraries
+```{r}
+suppressPackageStartupMessages({
+  library(DIRECTNET)
+  library(Seurat)
+  library(Signac)
+  library(patchwork)
+  library(ggplot2)
+  library(BSgenome.Drerio.UCSC.danRer11)
+  library(dplyr)
+  library(ggsci)
+})
+options(stringsAsFactors = FALSE)
+```
+
+# 2. Read data
+```{r}
+seurat <- readRDS(file = "../InitialProcessing/RDSfiles/HB13hpf_rep1_rep2_neural_merged.RDS")
+```
+
+# 3. Prep Input for DIRECT-NET
+
+## 3.1 ATAC assay
+DIRECT-NET uses ATAC assay so will move peaks assay (which contains corrected ATAC data) into ATAC assay.  Also uses reductions[["wnn.umap"]], so will move reductions[["umap"]] which is based on spca of ref map combined HB13 rep1 and rep2 to reductions[["wnn.umap"]]
+```{r}
+seurat[["ATAC"]] <- seurat[["peaks"]]
+seurat[["wnn.umap"]] <- seurat[["umap"]]
+```
+
+## 3.2 Subset to rhombomeres only
+
+```{r}
+Idents(seurat) <- "Clusters"
+DimPlot(seurat, reduction = "wnn.umap") + scale_color_igv()
+```
+
+
+## 3.2 DE genes
+DIRECT-NET matches TF names from motifs to gene names in direct.net information created in SeuratObject@misc[["direct.net"]]. The motif names come from the Jaspar2016 human core database and are named with human gene names.  When I attempted to convert these human gene names into zebrafish homologs, and tested how many network_links (created in a trial exploration where I converted focused_markers genes from zebrafish to human) would be lost due to unconverted human motif names, I would lose 373 of 753 network_links.
+
+So for this DIRECT-NET analysis will convert DE genes from zebrafish names to human names along with TSS gene names in GRCz11.info.
+
+Will find DE genes for r1, r2, r1&r2, r3, r4, r5, r6 comparing only to all other neural clusters with Seurat FindAllMarkers then convert zebrafish gene names into human homologs.
+```{r}
+Idents(seurat) <- "Clusters"
+DefaultAssay(seurat) <- "SCT"
+markers <- FindAllMarkers(seurat, only.pos = TRUE, verbose = F, recorrect_umi=FALSE)
+```
+
+```{r}
+rhom_markers <- markers[markers$cluster %in% c("r1","r1&r2","r2","r3","r4","r5","r6"),] %>%
+  dplyr::select(cluster, gene) %>%
+  dplyr::rename(group = cluster)
+dim(rhom_markers)
+length(unique(rhom_markers$gene))
+head(rhom_markers)
+```
+
+We realized that ensembl zebrafish/human homolog file had errors (egr2b to EGR4), so will use zfin database instead.
+Downloaded from zfin.org zebrafish genes and human homologs to file, zfin_human_orthos_2022.09.26.txt:
+
+```{r}
+zToh <- read.delim(file = "~/Documents/Projects/R_General/zfin_human_orthos_2022.09.26.txt", skip = 1)
+```
+
+```{r}
+head(zToh)
+```
+
+```{r}
+rhom_markers_human <- merge(x = rhom_markers, y = zToh, by.x = "gene", by.y = "ZFIN.Symbol") %>%
+  dplyr::select(Human.Symbol, group) %>%
+  dplyr::filter(!Human.Symbol == "") %>%
+  dplyr::rename(gene = Human.Symbol) %>%
+  dplyr::arrange(group)
+head(rhom_markers_human)
+dim(rhom_markers_human)
+length(unique(rhom_markers_human$gene))
+```
+
+## 3.3 TSS data
+
+```{r}
+## these are internal functions in Signac
+## copying here so can use on their own
+GetTSSPositions <- function(ranges, biotypes = "protein_coding") {
+  if (!("gene_biotype" %in% colnames(x = mcols(x = ranges)))) {
+    stop("Gene annotation does not contain gene_biotype information")
+  }
+  if (!is.null(x = biotypes)){
+    ranges <- ranges[ranges$gene_biotype == "protein_coding"]
+  }
+  gene.ranges <- CollapseToLongestTranscript(ranges = ranges)
+  # shrink to TSS position
+  tss <- resize(gene.ranges, width = 1, fix = 'start')
+  return(tss)
+}
+
+CollapseToLongestTranscript <- function(ranges) {
+  range.df <- data.table::as.data.table(x = ranges)
+  range.df$strand <- as.character(x = range.df$strand)
+  range.df$strand <- ifelse(
+    test = range.df$strand == "*",
+    yes = "+",
+    no = range.df$strand
+  )
+  collapsed <- range.df[
+    , .(unique(seqnames),
+        min(start),
+        max(end),
+        strand[[1]],
+        gene_biotype[[1]],
+        gene_name[[1]]),
+    "gene_id"
+  ]
+  colnames(x = collapsed) <- c(
+    "gene_id", "seqnames", "start", "end", "strand", "gene_biotype", "gene_name"
+  )
+  collapsed$gene_name <- make.unique(names = collapsed$gene_name)
+  gene.ranges <- makeGRangesFromDataFrame(
+    df = collapsed,
+    keep.extra.columns = TRUE
+  )
+  return(gene.ranges)
+}
+```
+
+```{r}
+myTSS <- as.data.frame(GetTSSPositions(Annotation(seurat[["ATAC"]])))
+```
+
+```{r}
+GRCz11.info <- myTSS %>%
+  dplyr::mutate(Ends = start + 1) %>%
+  dplyr::rowwise() %>%
+  dplyr::mutate(genes = strsplit(gene_name, "[.]")[[1]][1]) %>%
+  dplyr::rename(Chrom = seqnames, Starts = start) %>%
+  dplyr::select(Chrom, Starts, Ends, genes)
+head(GRCz11.info)
+```
+
+# 4. Run DIRECT-NET
+
+This finds ATAC peaks linked to TSS of DE genes found in section 3.2 using rhom_markers with zebrafish gene names.  Needed so genes match rownames of HB13hpf.
+```{r}
+DefaultAssay(seurat) <- "ATAC"
+Idents(seurat) <- "Clusters"
+seurat <- Run_DIRECT_NET(seurat, peakcalling = FALSE, k_neigh = 50, atacbinary = TRUE, max_overlap=0.5, size_factor_normalize = FALSE, genome.info = GRCz11.info, focus_markers = unique(rhom_markers$gene), rescued = TRUE)
+```
+
+```{r}
+seurat_rhom_direct.net <- as.data.frame(seurat@misc$direct.net) %>%
+  dplyr::arrange(Chr, Starts)
+head(seurat_rhom_direct.net)
+```
+
+Then need to convert zebrafish gene names in seurat_rhom_direct.net into human gene names for matching with motif names in generate_CRE_Gene_links()
+
+```{r}
+seurat_rhom_direct.net_human <- merge(seurat_rhom_direct.net, y = zToh, by.x = "gene", by.y = "ZFIN.Symbol") %>%
+  dplyr::select(!c(gene,ZFIN.ID,ZFIN.Name,Human.Name,OMIM.ID,Gene.ID,HGNC.ID,Evidence,Pub.ID,X)) %>%
+  dplyr::filter(!Human.Symbol == "") %>%
+  dplyr::rename(gene = Human.Symbol) %>%
+  dplyr::arrange(Chr, Starts)
+head(seurat_rhom_direct.net_human)
+```
+
+
+
+# 5. DA peaks
+
+Identify differential accessible peaks for groups in rhom_markers_human (r1, r2, r1&r2, r3, r4, r5, r6)
+```{r}
+### identify differential accessible peaks (DA)
+DefaultAssay(seurat) <- 'ATAC'
+groups <- unique(rhom_markers_human$group)
+da_peaks_list <- list()
+for (i in 1:length(groups)) {
+  print(i)
+  try({
+    da_peaks <- FindMarkers(
+      object = seurat,
+      min.pct = 0.2,
+      logfc.threshold = 0.4,
+      ident.1 = groups[i],
+      group.by = "Clusters",
+      test.use = 'LR',
+      only.pos = TRUE
+    )
+  })
+  da_peaks_list[[i]] <- da_peaks
+}
+```
+
+# Custom Functions
+
+```{r}
+## The only difference between this an original is this takes a motif PFMatrixList as input rather than generating.  This way can use motif PFMatrixList with "fixed" names to match Homo sapiens gene/TF names in converted datasets.
+my_generate_peak_TF_links <- function(peaks_bed_list, motifs, genome, markers) {
+  
+  L_TF_record <- list()
+  for (i in 1:length(peaks_bed_list)) {
+    if (!is.null(peaks_bed_list[[i]])) {
+      peaks_bed <- peaks_bed_list[[i]]
+      peaks_new <- GRanges(seqnames = peaks_bed$R.chrom,
+                           ranges = IRanges(start = peaks_bed$R.start, end = peaks_bed$R.end))
+      motif_ix <- motifmatchr::matchMotifs(motifs, peaks_new, genome,out = "scores")
+      S <- as.matrix(motif_ix@assays@data$motifScores)
+      M <- as.matrix(motif_ix@assays@data$motifMatches)
+      TF <- motif_ix@colData$name
+      
+      L_TF_list <- list()
+      for (j in 1:nrow(M)) {
+        if (sum(M[j,]) > 0) {
+          p <- paste0(peaks_bed$R.chrom[j],"_",peaks_bed$R.start[j],"_",peaks_bed$R.end[j])
+          # focus TFs in the markers
+          TF_j = intersect(unique(markers$gene), TF[M[j,]])
+          if (length(TF_j) > 0) {
+            L_TF_list[[j]] <- data.frame(loci = p, TF = TF_j)
+          }
+        }
+      }
+      L_TF_record[[i]] <- do.call(rbind,L_TF_list)
+    }
+  }
+  return(L_TF_record)
+}
+
+```
+
+
+```{r}
+library(TFBSTools)
+library(JASPAR2020)
+motifs_2020 <- getMatrixSet(x = JASPAR2020,opts = list(collection="CORE", all_versions = FALSE))
+```
+
+```{r}
+for(i in 1:length(motifs_2020@listData)){
+  name <- motifs_2020@listData[[i]]@name
+  motifname <- motifs_2020@listData[[i]]@ID
+  #print(name)
+  #print(motifname)
+  name <- stringr::str_split(name, "\\(")[[1]][1]  ## remove everything after ( in name
+  if(name == toupper(name)){ ## is all upper case
+    name <- stringr::str_split(name, "::")[[1]]
+    if(length(name) > 1){
+      for(n in 1:length(name)){
+        new_motifname <- paste(motifname,n,".")
+        motifs_2020@listData[[new_motifname]] <- motifs_2020@listData[[motifname]]
+        motifs_2020@listData[[new_motifname]]@name <- name[n]
+        #OK_names <- c(OK_names, name[n]) ## add all upper case names to OK list
+        ## this also adds upper case names with special characters most of which won't be human 
+        ## but the few human names with special characters are official gene names
+      }
+    }else{
+      motifs_2020@listData[[motifname]]@name <- name
+    }
+  }else{ ## name has lower case use either remap_tf_name or symbol as name
+    if(is.character(motifs_2020@listData[[motifname]]@tags[["remap_tf_name"]])){
+      name <- motifs_2020@listData[[motifname]]@tags[["remap_tf_name"]]
+      #print(name)
+      motifs_2020@listData[[motifname]]@name <- name
+    }else{
+      if(is.character(motifs_2020@listData[[motifname]]@tags[["symbol"]]) && motifs_2020@listData[[motifname]]@tags[["symbol"]] != "-"){
+        name <- motifs_2020@listData[[motifname]]@tags[["symbol"]]
+        motifs_2020@listData[[motifname]]@name <- name
+      }else{
+        if(motifs_2020@listData[[motifname]]@tags[["species"]] == "Mus musculus"){
+          name <- stringr::str_split(name, "::")[[1]]
+          if(length(name) > 1){
+            for(n in 1:length(name)){
+              new_motifname <- paste(motifname,n,".")
+              motifs_2020@listData[[new_motifname]] <- motifs_2020@listData[[motifname]]
+              motifs_2020@listData[[new_motifname]]@name <- toupper(name[n])
+            }
+          }else{
+            motifs_2020@listData[[motifname]]@name <- toupper(name)
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+# 7. Generate separate network for each rhombomere
+
+Will want to put these into Cytoscape and compare to networks generated previously.
+
+```{r}
+if (!dir.exists("results_neural_4logfc_rescued")){
+  dir.create("results_neural_4logfc_rescued")
+}else{
+  print("dir exists")
+}
+```
+```{r}
+groups
+```
+
+
+```{r}
+group = c(3,4)
+rhom = groups[group] ##"r5","r3"
+rhom
+CREs_rhom <- generate_CRE_Gene_links(seurat_rhom_direct.net_human,
+                                     markers = rhom_markers_human[rhom_markers_human$group %in% rhom,])
+Focused_CREs_rhom <- generate_CRE(L_G_record = CREs_rhom$distal,
+                                  P_L_G_record = CREs_rhom$promoter,
+                                  da_peaks_list[group])
+L_TF_record_rhom <- my_generate_peak_TF_links(peaks_bed_list = Focused_CREs_rhom$distal,
+                                              motifs = motifs_2020,
+                                              genome = BSgenome.Drerio.UCSC.danRer11,
+                                              markers = rhom_markers_human[rhom_markers_human$group %in% rhom,])
+P_L_TF_record_rhom <- my_generate_peak_TF_links(peaks_bed_list = Focused_CREs_rhom$promoter,
+                                                motifs = motifs_2020,
+                                                genome = BSgenome.Drerio.UCSC.danRer11,
+                                                markers = rhom_markers_human[rhom_markers_human$group %in% rhom,])
+network_links_rhom <- generate_links_for_Cytoscape(L_G_record = Focused_CREs_rhom$L_G_record,
+                                                   L_TF_record_rhom,
+                                                   P_L_G_record = Focused_CREs_rhom$P_L_G_record,
+                                                   P_L_TF_record_rhom,
+                                                   rhom)
+Node_attribute_rhom <- generate_node_for_Cytoscape(network_links_rhom,
+                                                   markers = rhom_markers_human[rhom_markers_human$group %in% rhom,])
+write.table(data.frame("TF"=rownames(Node_attribute_rhom),Node_attribute_rhom),
+            file = "results_neural_4logfc_rescued/r3plusr5_node_attribute.csv",
+            sep = ",", quote = F, row.names = FALSE)
+write.table(network_links_rhom,
+            file = "results_neural_4logfc_rescued/r3plusr5_network_links.csv",
+            sep = ",", quote = F, row.names = FALSE)
+```
+
+
+```{r}
+sessionInfo()
+```
+
