@@ -31,7 +31,7 @@ To prevent conflict with chromosome naming in BSgenome.Drerio.UCSC.danRer11 used
 Used cellranger_arc/1.0.1 count and zebrafishPlusGFP reference to generate gene expression matrix and ATAC fragment files.
 
 ## 3. Analyses in R with Signac
-Used Signac/1.2.1 to analyze single cell data
+Used Signac/1.2.1 to analyze single cell data.  All analyses in workspace/notebooks
 
 
 
