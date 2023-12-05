@@ -3,6 +3,8 @@
 ## 1. single cell RNAseq/ATACseq analyses for the manuscript:
 Kim YI, O'Rourke R, Sagerström CG. scMultiome analysis identifies embryonic hindbrain progenitors with mixed rhombomere identities. Elife. 2023 Nov 10;12. doi: 10.7554/eLife.87772. PubMed PMID: 37947350; PubMed Central PMCID: PMC10662952. https://pubmed.ncbi.nlm.nih.gov/37947350/
 
+Data is available on GEO GSE223535 https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE223535
+
 ## 2. CellRanger pipeline
 ### 2.1 Make zebrafish GFP cellrannger reference
 #### 2.1.1 Download reference files
